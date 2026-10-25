@@ -6,8 +6,8 @@
  */
 
 const AppConfig = {
-  // ค่าเริ่มต้น Web App URL (ถ้ายังไม่ได้กรอก จะทำงานใน Demo/Mock Mode อัตโนมัติ)
-  DEFAULT_GAS_URL: "",
+  // ค่าเริ่มต้น Web App URL (เชื่อมต่อกับ Google Apps Script Backend จริง)
+  DEFAULT_GAS_URL: "https://script.google.com/macros/s/AKfycbxn_Yc3BVxzm6OC5Fs0FbnpEUxEylRS24WL2eYDEFTzYh9r07IxKWe52_8c-jSrSLXO/exec",
 
   STORAGE_KEYS: {
     GAS_URL: "line_keep_gas_url",

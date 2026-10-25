@@ -14,6 +14,10 @@ function doGet(e) {
     var result;
 
     switch (action) {
+      case "setupDatabase":
+        setupDatabase();
+        result = { success: true, message: "ติดตั้งและตั้งค่าฐานข้อมูลเรียบร้อยแล้ว" };
+        break;
       case "getDashboardData":
         result = getDashboardData();
         break;
@@ -130,6 +134,15 @@ function jsonResponse(data) {
  * ดึงข้อมูลสรุปสำหรับแดชบอร์ดภาพรวม
  */
 function getDashboardData() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss.getSheetByName("Groups")) {
+      setupDatabase();
+    }
+  } catch (initErr) {
+    Logger.log("Auto setupDatabase error: " + initErr.toString());
+  }
+
   var groups = getGroupsList().data || [];
   var albums = getAlbumsList().data || [];
   var files = getFilesList().data || [];
