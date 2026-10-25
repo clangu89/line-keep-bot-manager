@@ -16,10 +16,16 @@ const App = {
   groups: [],
   albums: [],
   files: [],
+  usersList: [],
   logs: [],
   chartInstance: null,
 
   async init() {
+    if (!AuthService.isLoggedIn()) {
+      this.renderLoginScreen();
+      return;
+    }
+
     // โหลด filter จาก localStorage
     this.activeGroupFilter = AppConfig.getActiveGroupFilter();
     
@@ -54,6 +60,13 @@ const App = {
       var filRes = await ApiService.getFiles(this.activeGroupFilter);
       if (filRes.success) {
         this.files = filRes.data;
+      }
+
+      if (AuthService.isAdmin()) {
+        var usrRes = await ApiService.getUsers();
+        if (usrRes && usrRes.success) {
+          this.usersList = usrRes.data || [];
+        }
       }
 
       this.updateNavbarBadges();
@@ -116,6 +129,20 @@ const App = {
                 <i data-lucide="upload-cloud" class="w-4 h-4"></i>
                 <span>อัปโหลดเข้า Drive</span>
               </button>
+
+              <!-- User Profile & Logout -->
+              <div class="flex items-center space-x-2 pl-2 sm:pl-3 border-l border-slate-200">
+                <div class="hidden lg:flex flex-col text-right">
+                  <span class="text-xs font-bold text-slate-800 leading-tight">${user ? user.fullname : 'ผู้ใช้'}</span>
+                  <span class="text-[10px] ${user && user.role === 'admin' ? 'text-purple-600 font-semibold' : 'text-slate-400'}">${user && user.role === 'admin' ? '👑 ผู้ดูแลระบบ' : user && user.role === 'staff' ? '⚡ เจ้าหน้าที่' : '👁️ ผู้ดูข้อมูล'}</span>
+                </div>
+                <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold text-xs uppercase" title="${user ? user.fullname : ''}">
+                  ${user && user.username ? user.username.substring(0, 2).toUpperCase() : 'US'}
+                </div>
+                <button onclick="AuthService.logout()" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="ออกจากระบบ">
+                  <i data-lucide="log-out" class="w-4 h-4"></i>
+                </button>
+              </div>
             </div>
 
           </div>
@@ -148,6 +175,12 @@ const App = {
               <i data-lucide="settings" class="w-4 h-4 text-slate-600"></i>
               <span>ตั้งค่าการเชื่อมต่อ</span>
             </button>
+            ${AuthService.isAdmin() ? `
+            <button onclick="App.switchTab('users')" id="tab-users" class="tab-btn px-3 py-2 rounded-lg flex items-center space-x-2 hover:bg-white transition">
+              <i data-lucide="shield-check" class="w-4 h-4 text-purple-600"></i>
+              <span>จัดการผู้ใช้งาน</span>
+            </button>
+            ` : ''}
           </div>
         </nav>
       </header>
@@ -197,6 +230,9 @@ const App = {
       case "settings":
         this.renderSettings(content);
         break;
+      case "users":
+        this.renderUsers(content);
+        break;
     }
     lucide.createIcons();
   },
@@ -219,6 +255,153 @@ const App = {
     }
     var countEl = document.getElementById("badge-groups-count");
     if (countEl) countEl.innerText = this.groups.length;
+  },
+
+  // ==================================================================
+  // AUTHENTICATION & LOGIN SCREEN
+  // ==================================================================
+
+  renderLoginScreen() {
+    var root = document.getElementById("app");
+    var isMock = AppConfig.isMockMode();
+
+    root.innerHTML = `
+      <div class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4 text-slate-800">
+        
+        <div class="sm:mx-auto sm:w-full sm:max-w-md text-center">
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-500 to-green-400 flex items-center justify-center text-white shadow-xl shadow-emerald-900/50 mb-4 pulse-emerald">
+            <i data-lucide="folder-git-2" class="w-8 h-8"></i>
+          </div>
+          <h2 class="text-2xl font-bold tracking-tight text-white">LINE Keep Bot Manager</h2>
+          <p class="text-xs sm:text-sm text-emerald-200/80 mt-1">ระบบบริหารจัดการไฟล์กลุ่ม LINE และเชื่อมต่อ Google Drive</p>
+          
+          <div class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium mt-3 ${isMock ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}">
+            <span class="w-2 h-2 rounded-full ${isMock ? 'bg-amber-400' : 'bg-emerald-400 animate-ping'}"></span>
+            <span>${isMock ? 'โหมดจำลอง (Demo Mode)' : 'เชื่อมต่อสด (Live GAS)'}</span>
+          </div>
+        </div>
+
+        <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          <div class="bg-white/95 backdrop-blur-md py-8 px-6 sm:px-10 shadow-2xl rounded-3xl border border-white/20">
+            
+            <div id="login-error-alert" class="hidden mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center space-x-2">
+              <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+              <span id="login-error-text">ข้อผิดพลาด</span>
+            </div>
+
+            <form class="space-y-4" onsubmit="event.preventDefault(); App.handleLoginSubmit();">
+              <div>
+                <label for="login-username" class="block text-xs font-semibold text-slate-700 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                  </div>
+                  <input id="login-username" type="text" required placeholder="ระบุ username" class="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition font-medium">
+                </div>
+              </div>
+
+              <div>
+                <label for="login-password" class="block text-xs font-semibold text-slate-700 mb-1">รหัสผ่าน (Password)</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                  </div>
+                  <input id="login-password" type="password" required placeholder="ระบุ password" class="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-10 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition font-medium">
+                  <button type="button" onclick="App.togglePasswordVisibility('login-password', 'pwd-toggle-icon')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+                    <i id="pwd-toggle-icon" data-lucide="eye" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="pt-2">
+                <button type="submit" id="login-submit-btn" class="w-full flex justify-center items-center space-x-2 py-3 px-4 border border-transparent rounded-xl shadow-md text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition duration-150">
+                  <i data-lucide="log-in" class="w-4 h-4"></i>
+                  <span>เข้าสู่ระบบ</span>
+                </button>
+              </div>
+            </form>
+
+            <!-- Quick Auto-Fill Demo Accounts -->
+            <div class="mt-6 pt-5 border-t border-slate-100">
+              <p class="text-[11px] text-slate-400 text-center font-medium mb-2.5">บัญชีทดสอบเริ่มต้น (คลิกเพื่อกรอกอัตโนมัติ):</p>
+              <div class="flex flex-col sm:flex-row gap-2">
+                <button type="button" onclick="App.quickFillLogin('admin', 'admin1234')" class="flex-1 text-[11px] bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-purple-700 border border-slate-200 hover:border-purple-300 py-1.5 px-2 rounded-lg font-mono transition text-center truncate">
+                  👑 <strong>admin</strong> / admin1234
+                </button>
+                <button type="button" onclick="App.quickFillLogin('staff1', 'staff1234')" class="flex-1 text-[11px] bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-300 py-1.5 px-2 rounded-lg font-mono transition text-center truncate">
+                  ⚡ <strong>staff1</strong> / staff1234
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    `;
+    lucide.createIcons();
+  },
+
+  togglePasswordVisibility(inputId, iconId) {
+    var input = document.getElementById(inputId);
+    var icon = document.getElementById(iconId);
+    if (!input) return;
+    if (input.type === "password") {
+      input.type = "text";
+      if (icon) icon.setAttribute("data-lucide", "eye-off");
+    } else {
+      input.type = "password";
+      if (icon) icon.setAttribute("data-lucide", "eye");
+    }
+    lucide.createIcons();
+  },
+
+  quickFillLogin(u, p) {
+    var uInput = document.getElementById("login-username");
+    var pInput = document.getElementById("login-password");
+    if (uInput) uInput.value = u;
+    if (pInput) pInput.value = p;
+  },
+
+  async handleLoginSubmit() {
+    var username = (document.getElementById("login-username") ? document.getElementById("login-username").value : "").trim();
+    var password = (document.getElementById("login-password") ? document.getElementById("login-password").value : "").trim();
+    var errAlert = document.getElementById("login-error-alert");
+    var errText = document.getElementById("login-error-text");
+    var btn = document.getElementById("login-submit-btn");
+
+    if (!username || !password) return;
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<svg class="animate-spin w-4 h-4 text-white mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> <span>กำลังตรวจสอบ...</span>`;
+    }
+
+    try {
+      var res = await AuthService.login(username, password);
+      if (res && res.success) {
+        if (errAlert) errAlert.classList.add("hidden");
+        await App.init();
+      } else {
+        if (errAlert && errText) {
+          errText.innerText = (res && res.error) ? res.error : "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
+          errAlert.classList.remove("hidden");
+          lucide.createIcons();
+        }
+      }
+    } catch (err) {
+      if (errAlert && errText) {
+        errText.innerText = err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ";
+        errAlert.classList.remove("hidden");
+        lucide.createIcons();
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="log-in" class="w-4 h-4"></i> <span>เข้าสู่ระบบ</span>`;
+        lucide.createIcons();
+      }
+    }
   },
 
   // ==================================================================
@@ -1244,6 +1427,153 @@ const App = {
   },
 
   // ==================================================================
+  // 7. USER MANAGEMENT VIEW
+  // ==================================================================
+
+  renderUsers(container) {
+    var users = this.usersList || [];
+    var totalUsers = users.length;
+    var adminCount = users.filter(u => u.role === 'admin').length;
+    var staffCount = users.filter(u => u.role === 'staff').length;
+    var activeCount = users.filter(u => u.status === 'active').length;
+
+    container.innerHTML = `
+      <div class="space-y-6">
+        
+        <!-- Header Actions -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="bg-purple-100 text-purple-800 text-xs px-2.5 py-0.5 rounded-full font-bold">Admin Only</span>
+              <h2 class="text-xl font-bold text-slate-800">จัดการผู้ใช้งานระบบ (User Management)</h2>
+            </div>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+              กำหนดสิทธิ์ผู้ใช้งาน เพิ่ม/แก้ไข/ระงับบัญชี และรีเซ็ตรหัสผ่านสำหรับเข้าใช้งานระบบ
+            </p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="App.openAddUserModal()" class="inline-flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition">
+              <i data-lucide="user-plus" class="w-4 h-4"></i>
+              <span>เพิ่มผู้ใช้งานใหม่</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Metric Summary Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-500 font-medium">ผู้ใช้ทั้งหมด</p>
+              <h3 class="text-xl font-bold text-slate-800 mt-0.5">${totalUsers} คน</h3>
+            </div>
+            <div class="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+              <i data-lucide="users" class="w-5 h-5"></i>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-500 font-medium">ผู้ดูแลระบบ (Admin)</p>
+              <h3 class="text-xl font-bold text-purple-700 mt-0.5">${adminCount} คน</h3>
+            </div>
+            <div class="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+              <i data-lucide="shield-check" class="w-5 h-5"></i>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-500 font-medium">เจ้าหน้าที่ (Staff)</p>
+              <h3 class="text-xl font-bold text-blue-700 mt-0.5">${staffCount} คน</h3>
+            </div>
+            <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <i data-lucide="user-check" class="w-5 h-5"></i>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-500 font-medium">เปิดใช้งาน (Active)</p>
+              <h3 class="text-xl font-bold text-emerald-700 mt-0.5">${activeCount} คน</h3>
+            </div>
+            <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <i data-lucide="check-circle" class="w-5 h-5"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Users Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm text-slate-600">
+              <thead class="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-3.5 px-4">ผู้ใช้งาน</th>
+                  <th class="py-3.5 px-4">ชื่อผู้ใช้ (Username)</th>
+                  <th class="py-3.5 px-4">บทบาท (Role)</th>
+                  <th class="py-3.5 px-4">สถานะ</th>
+                  <th class="py-3.5 px-4 text-center">การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                ${users.length === 0 ? `
+                  <tr>
+                    <td colspan="5" class="py-8 text-center text-slate-400">
+                      <i data-lucide="users" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+                      ไม่พบข้อมูลผู้ใช้งาน
+                    </td>
+                  </tr>
+                ` : users.map(u => {
+                  var roleBadge = u.role === 'admin'
+                    ? '<span class="bg-purple-50 text-purple-700 border border-purple-200 text-xs px-2.5 py-1 rounded-full font-semibold inline-flex items-center"><i data-lucide="shield" class="w-3 h-3 mr-1"></i> ผู้ดูแลระบบ (Admin)</span>'
+                    : u.role === 'staff'
+                    ? '<span class="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2.5 py-1 rounded-full font-semibold inline-flex items-center"><i data-lucide="user" class="w-3 h-3 mr-1"></i> เจ้าหน้าที่ (Staff)</span>'
+                    : '<span class="bg-slate-100 text-slate-600 text-xs px-2.5 py-1 rounded-full font-semibold inline-flex items-center"><i data-lucide="eye" class="w-3 h-3 mr-1"></i> ผู้ดูข้อมูล (Viewer)</span>';
+
+                  var statusBadge = u.status === 'active'
+                    ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>ใช้งานอยู่</span>'
+                    : '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500"><span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5"></span>ระงับใช้งาน</span>';
+
+                  return `
+                    <tr class="hover:bg-slate-50 transition">
+                      <td class="py-3.5 px-4">
+                        <div class="flex items-center space-x-3">
+                          <div class="w-9 h-9 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center uppercase shrink-0 border border-slate-200">
+                            ${u.username ? u.username.substring(0, 2) : 'US'}
+                          </div>
+                          <div>
+                            <div class="font-bold text-slate-800">${u.fullname || u.username}</div>
+                            <div class="text-[11px] text-slate-400 font-mono">${u.user_id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="py-3.5 px-4 font-mono font-semibold text-slate-700">${u.username}</td>
+                      <td class="py-3.5 px-4">${roleBadge}</td>
+                      <td class="py-3.5 px-4">${statusBadge}</td>
+                      <td class="py-3.5 px-4 text-center">
+                        <div class="flex items-center justify-center space-x-1">
+                          <button onclick="App.openEditUserModal('${u.user_id}')" class="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="แก้ไข">
+                            <i data-lucide="edit-3" class="w-4 h-4"></i>
+                          </button>
+                          <button onclick="App.deleteUser('${u.user_id}', '${u.username}')" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="ลบผู้ใช้">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    `;
+    lucide.createIcons();
+  },
+
+  // ==================================================================
   // MODALS & DIALOGS
   // ==================================================================
 
@@ -1601,6 +1931,214 @@ const App = {
     this.activeGroupFilter = alb.group_id;
     this.renderLayout();
     this.switchTab("gallery");
+  },
+
+  openAddUserModal() {
+    var container = document.getElementById("modal-container");
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl modal-enter space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 class="font-bold text-slate-800 text-base">เพิ่มผู้ใช้งานใหม่</h3>
+            <button onclick="App.closeModal()" class="text-slate-400 hover:text-slate-600">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+
+          <div class="space-y-3 text-xs sm:text-sm">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">ชื่อผู้ใช้งาน (Username) *</label>
+              <input type="text" id="modal-user-username" placeholder="เช่น staff2" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono">
+            </div>
+
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">รหัสผ่าน (Password) *</label>
+              <input type="password" id="modal-user-password" placeholder="ระบุรหัสผ่านเริ่มต้น" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono">
+            </div>
+
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">ชื่อ-นามสกุล *</label>
+              <input type="text" id="modal-user-fullname" placeholder="เช่น นายสมศักดิ์ ขยันงาน" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">บทบาท (Role) *</label>
+              <select id="modal-user-role" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                <option value="staff">⚡ เจ้าหน้าที่ (Staff) - จัดการไฟล์และกลุ่มได้</option>
+                <option value="admin">👑 ผู้ดูแลระบบ (Admin) - จัดการได้ทุกฟังก์ชัน</option>
+                <option value="viewer">👁️ ผู้ดูข้อมูล (Viewer) - ดูและดาวน์โหลดไฟล์อย่างเดียว</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">สถานะ</label>
+              <select id="modal-user-status" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                <option value="active">เปิดใช้งาน (Active)</option>
+                <option value="inactive">ระงับการใช้งาน (Inactive)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-2">
+            <button onclick="App.closeModal()" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-medium text-xs sm:text-sm transition">ยกเลิก</button>
+            <button onclick="App.submitAddUser()" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium text-xs sm:text-sm transition">บันทึกผู้ใช้</button>
+          </div>
+        </div>
+      </div>
+    `;
+    lucide.createIcons();
+  },
+
+  async submitAddUser() {
+    var username = (document.getElementById("modal-user-username") ? document.getElementById("modal-user-username").value : "").trim();
+    var password = (document.getElementById("modal-user-password") ? document.getElementById("modal-user-password").value : "").trim();
+    var fullname = (document.getElementById("modal-user-fullname") ? document.getElementById("modal-user-fullname").value : "").trim();
+    var role = document.getElementById("modal-user-role") ? document.getElementById("modal-user-role").value : "staff";
+    var status = document.getElementById("modal-user-status") ? document.getElementById("modal-user-status").value : "active";
+
+    if (!username || !password) {
+      alert("กรุณาระบุ Username และ Password");
+      return;
+    }
+
+    try {
+      this.showLoading(true);
+      var res = await ApiService.saveUser({
+        username: username,
+        password: password,
+        fullname: fullname || username,
+        role: role,
+        status: status
+      });
+
+      if (res && res.success) {
+        this.showToast("เพิ่มผู้ใช้งานสำเร็จแล้ว!", "success");
+        this.closeModal();
+        await this.loadData();
+        this.switchTab("users");
+      } else {
+        alert(res ? res.error : "เกิดข้อผิดพลาด");
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      this.showLoading(false);
+    }
+  },
+
+  openEditUserModal(userId) {
+    var user = (this.usersList || []).find(u => u.user_id === userId);
+    if (!user) return;
+
+    var container = document.getElementById("modal-container");
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl modal-enter space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 class="font-bold text-slate-800 text-base">แก้ไขข้อมูลผู้ใช้: <span class="font-mono text-purple-700">${user.username}</span></h3>
+            <button onclick="App.closeModal()" class="text-slate-400 hover:text-slate-600">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+
+          <div class="space-y-3 text-xs sm:text-sm">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">ชื่อ-นามสกุล *</label>
+              <input type="text" id="modal-edit-fullname" value="${user.fullname || ''}" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">เปลี่ยนรหัสผ่านใหม่ (เว้นว่างไว้หากไม่ต้องการเปลี่ยน)</label>
+              <input type="password" id="modal-edit-password" placeholder="กรอกรหัสผ่านใหม่" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono">
+            </div>
+
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">บทบาท (Role) *</label>
+              <select id="modal-edit-role" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                <option value="staff" ${user.role === 'staff' ? 'selected' : ''}>⚡ เจ้าหน้าที่ (Staff)</option>
+                <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>👑 ผู้ดูแลระบบ (Admin)</option>
+                <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>👁️ ผู้ดูข้อมูล (Viewer)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">สถานะ</label>
+              <select id="modal-edit-status" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                <option value="active" ${user.status === 'active' ? 'selected' : ''}>เปิดใช้งาน (Active)</option>
+                <option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>ระงับการใช้งาน (Inactive)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-2">
+            <button onclick="App.closeModal()" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-medium text-xs sm:text-sm transition">ยกเลิก</button>
+            <button onclick="App.submitEditUser('${user.user_id}')" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium text-xs sm:text-sm transition">บันทึกการเปลี่ยนแปลง</button>
+          </div>
+        </div>
+      </div>
+    `;
+    lucide.createIcons();
+  },
+
+  async submitEditUser(userId) {
+    var fullname = (document.getElementById("modal-edit-fullname") ? document.getElementById("modal-edit-fullname").value : "").trim();
+    var password = (document.getElementById("modal-edit-password") ? document.getElementById("modal-edit-password").value : "").trim();
+    var role = document.getElementById("modal-edit-role") ? document.getElementById("modal-edit-role").value : "staff";
+    var status = document.getElementById("modal-edit-status") ? document.getElementById("modal-edit-status").value : "active";
+
+    try {
+      this.showLoading(true);
+      var updatePayload = {
+        fullname: fullname,
+        role: role,
+        status: status
+      };
+      if (password) {
+        updatePayload.password = password;
+      }
+
+      var res = await ApiService.updateUser(userId, updatePayload);
+      if (res && res.success) {
+        this.showToast("บันทึกการแก้ไขผู้ใช้สำเร็จแล้ว!", "success");
+        this.closeModal();
+        await this.loadData();
+        this.switchTab("users");
+      } else {
+        alert(res ? res.error : "เกิดข้อผิดพลาด");
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      this.showLoading(false);
+    }
+  },
+
+  async deleteUser(userId, username) {
+    var currentUser = AuthService.getUser();
+    if (currentUser && currentUser.userId === userId) {
+      alert("คุณไม่สามารถลบบัญชีของตัวเองได้");
+      return;
+    }
+
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้งาน "${username}"?`)) {
+      return;
+    }
+
+    try {
+      this.showLoading(true);
+      var res = await ApiService.deleteUser(userId);
+      if (res && res.success) {
+        this.showToast("ลบผู้ใช้งานสำเร็จแล้ว!", "success");
+        await this.loadData();
+        this.switchTab("users");
+      } else {
+        alert(res ? res.error : "เกิดข้อผิดพลาด");
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      this.showLoading(false);
+    }
   },
 
   closeModal() {

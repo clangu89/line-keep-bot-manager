@@ -125,6 +125,26 @@ const ApiService = {
     return await this.request("testLineConnection", {}, "POST", { token: token });
   },
 
+  async login(username, password) {
+    return await this.request("login", {}, "POST", { username: username, password: password });
+  },
+
+  async getUsers() {
+    return await this.request("getUsers");
+  },
+
+  async saveUser(userData) {
+    return await this.request("saveUser", {}, "POST", { user: userData });
+  },
+
+  async updateUser(userId, userData) {
+    return await this.request("updateUser", {}, "POST", { userId: userId, user: userData });
+  },
+
+  async deleteUser(userId) {
+    return await this.request("deleteUser", {}, "POST", { userId: userId });
+  },
+
   // ==================================================================
   // MOCK DATA IMPLEMENTATION (เมื่อทำงานบน Demo Mode)
   // ==================================================================
@@ -366,6 +386,113 @@ const ApiService = {
               },
               message: "เชื่อมต่อ LINE Bot สำเร็จ (โหมดจำลอง)"
             });
+            break;
+          }
+
+          case "login": {
+            var usersList = db.users || MockDatabase.getInitialData().users || [];
+            var foundUser = usersList.find(function(u) {
+              return u.username.toLowerCase() === (postData.username || "").toLowerCase() &&
+                     u.password === postData.password &&
+                     u.status === "active";
+            });
+
+            if (foundUser) {
+              resolve({
+                success: true,
+                user: {
+                  userId: foundUser.user_id,
+                  username: foundUser.username,
+                  fullname: foundUser.fullname,
+                  role: foundUser.role || "staff",
+                  avatar: foundUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+                }
+              });
+            } else {
+              resolve({ success: false, error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง หรือบัญชีถูกระงับ" });
+            }
+            break;
+          }
+
+          case "getUsers": {
+            var allUsers = db.users || MockDatabase.getInitialData().users || [];
+            var sanitizedUsers = allUsers.map(function(u) {
+              return {
+                user_id: u.user_id,
+                username: u.username,
+                fullname: u.fullname,
+                role: u.role || "staff",
+                status: u.status || "active",
+                avatar: u.avatar || ""
+              };
+            });
+            resolve({ success: true, data: sanitizedUsers });
+            break;
+          }
+
+          case "saveUser": {
+            var users = db.users || MockDatabase.getInitialData().users || [];
+            var cleanUname = (postData.user.username || "").trim().toLowerCase();
+
+            if (users.some(function(u) { return u.username.toLowerCase() === cleanUname; })) {
+              resolve({ success: false, error: "Username นี้มีอยู่ในระบบแล้ว" });
+              return;
+            }
+
+            var newUser = {
+              user_id: "USR-" + Date.now().toString().slice(-4),
+              username: cleanUname,
+              password: postData.user.password,
+              fullname: postData.user.fullname || cleanUname,
+              role: postData.user.role || "staff",
+              status: postData.user.status || "active",
+              avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
+            };
+
+            users.push(newUser);
+            db.users = users;
+            MockDatabase.saveData(db);
+            resolve({ success: true, data: newUser, message: "เพิ่มผู้ใช้งานสำเร็จแล้ว!" });
+            break;
+          }
+
+          case "updateUser": {
+            var userList = db.users || MockDatabase.getInitialData().users || [];
+            var uTarget = userList.find(function(u) { return u.user_id === postData.userId; });
+            if (uTarget) {
+              if (postData.user.fullname !== undefined) uTarget.fullname = postData.user.fullname;
+              if (postData.user.role !== undefined) uTarget.role = postData.user.role;
+              if (postData.user.status !== undefined) uTarget.status = postData.user.status;
+              if (postData.user.password && postData.user.password.trim()) {
+                uTarget.password = postData.user.password.trim();
+              }
+              db.users = userList;
+              MockDatabase.saveData(db);
+              resolve({ success: true, message: "บันทึกข้อมูลผู้ใช้สำเร็จแล้ว!" });
+            } else {
+              resolve({ success: false, error: "ไม่พบผู้ใช้ที่ต้องการแก้ไข" });
+            }
+            break;
+          }
+
+          case "deleteUser": {
+            var existingUsers = db.users || MockDatabase.getInitialData().users || [];
+            var targetU = existingUsers.find(function(u) { return u.user_id === postData.userId; });
+
+            if (!targetU) {
+              resolve({ success: false, error: "ไม่พบผู้ใช้" });
+              return;
+            }
+
+            var activeAdmins = existingUsers.filter(function(u) { return u.role === "admin" && u.status === "active"; });
+            if (targetU.role === "admin" && activeAdmins.length <= 1) {
+              resolve({ success: false, error: "ไม่สามารถลบผู้ดูแลระบบ (Admin) คนสุดท้ายได้" });
+              return;
+            }
+
+            db.users = existingUsers.filter(function(u) { return u.user_id !== postData.userId; });
+            MockDatabase.saveData(db);
+            resolve({ success: true, message: "ลบผู้ใช้งานสำเร็จแล้ว!" });
             break;
           }
 

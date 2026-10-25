@@ -399,6 +399,36 @@ const MockDatabase = {
           message_type: "text",
           details: "คำสั่งแชท: #อัลบั้ม งานแถลงข่าวเปิดตัวสินค้า 2026 -> เปิดโหมดอัลบั้มสำเร็จ"
         }
+      ],
+
+      users: [
+        {
+          user_id: "USR-001",
+          username: "admin",
+          password: "admin1234",
+          fullname: "ผู้ดูแลระบบ LINE Keep Bot",
+          role: "admin",
+          status: "active",
+          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+        },
+        {
+          user_id: "USR-002",
+          username: "staff1",
+          password: "staff1234",
+          fullname: "สมศักดิ์ ไอที",
+          role: "staff",
+          status: "active",
+          avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150"
+        },
+        {
+          user_id: "USR-003",
+          username: "viewer1",
+          password: "viewer1234",
+          fullname: "วิภาวรรณ สื่อสาร",
+          role: "viewer",
+          status: "active",
+          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150"
+        }
       ]
     };
   },

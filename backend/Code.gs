@@ -36,6 +36,9 @@ function doGet(e) {
       case "getSettings":
         result = getSystemSettings();
         break;
+      case "getUsers":
+        result = getUsersList();
+        break;
       default:
         result = { success: false, error: "Unknown action: " + action };
     }
@@ -104,6 +107,15 @@ function doPost(e) {
         break;
       case "testLineConnection":
         result = handleTestLineConnection(payload.token);
+        break;
+      case "saveUser":
+        result = handleSaveUser(payload.user);
+        break;
+      case "updateUser":
+        result = handleUpdateUser(payload.userId, payload.user);
+        break;
+      case "deleteUser":
+        result = handleDeleteUser(payload.userId);
         break;
       default:
         result = { success: false, error: "Invalid action: " + action };
@@ -545,6 +557,132 @@ function handleUserLogin(username, password) {
     };
   }
   return { success: false, error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" };
+}
+
+/**
+ * ดึงรายชื่อผู้ใช้งานทั้งหมด (ซ่อนรหัสผ่าน)
+ */
+function getUsersList() {
+  var rows = getSheetDataAsObjects("Users");
+  var sanitized = rows.map(function(u) {
+    return {
+      user_id: u.user_id,
+      username: u.username,
+      fullname: u.fullname,
+      role: u.role || "staff",
+      status: u.status || "active"
+    };
+  });
+  return { success: true, data: sanitized };
+}
+
+/**
+ * เพิ่มผู้ใช้งานใหม่
+ */
+function handleSaveUser(user) {
+  if (!user || !user.username || !user.password) {
+    return { success: false, error: "กรุณาระบุ Username และ Password" };
+  }
+
+  var cleanUsername = user.username.trim().toLowerCase();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Users");
+  if (!sheet) return { success: false, error: "Sheet Users not found" };
+
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][1] && data[i][1].toString().trim().toLowerCase() === cleanUsername) {
+      return { success: false, error: "Username นี้มีอยู่ในระบบแล้ว กรุณาใช้ชื่ออื่น" };
+    }
+  }
+
+  var userId = "USR-" + Utilities.formatDate(new Date(), "Asia/Bangkok", "yyyyMMdd-HHmmss");
+  var newRow = [
+    userId,
+    cleanUsername,
+    user.password,
+    user.fullname || cleanUsername,
+    user.role || "staff",
+    user.status || "active"
+  ];
+
+  sheet.appendRow(newRow);
+
+  return {
+    success: true,
+    data: {
+      user_id: userId,
+      username: cleanUsername,
+      fullname: user.fullname || cleanUsername,
+      role: user.role || "staff",
+      status: user.status || "active"
+    },
+    message: "เพิ่มผู้ใช้งานสำเร็จแล้ว!"
+  };
+}
+
+/**
+ * อัปเดตข้อมูลผู้ใช้งาน
+ */
+function handleUpdateUser(userId, userData) {
+  if (!userId || !userData) {
+    return { success: false, error: "ข้อมูลไม่ครบถ้วน" };
+  }
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Users");
+  if (!sheet) return { success: false, error: "Sheet Users not found" };
+
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === userId) {
+      if (userData.fullname !== undefined) sheet.getRange(i + 1, 4).setValue(userData.fullname);
+      if (userData.role !== undefined) sheet.getRange(i + 1, 5).setValue(userData.role);
+      if (userData.status !== undefined) sheet.getRange(i + 1, 6).setValue(userData.status);
+      if (userData.password && userData.password.trim()) {
+        sheet.getRange(i + 1, 3).setValue(userData.password.trim());
+      }
+      return { success: true, message: "บันทึกข้อมูลผู้ใช้สำเร็จแล้ว!" };
+    }
+  }
+  return { success: false, error: "ไม่พบผู้ใช้ที่ต้องการแก้ไข" };
+}
+
+/**
+ * ลบผู้ใช้งาน (ป้องกันการลบ Admin คนสุดท้าย)
+ */
+function handleDeleteUser(userId) {
+  if (!userId) return { success: false, error: "ไม่ระบุ User ID" };
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Users");
+  if (!sheet) return { success: false, error: "Sheet Users not found" };
+
+  var data = sheet.getDataRange().getValues();
+  var targetRow = -1;
+  var targetRole = "";
+  var adminCount = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][4] === "admin" && data[i][5] === "active") {
+      adminCount++;
+    }
+    if (data[i][0] === userId) {
+      targetRow = i + 1;
+      targetRole = data[i][4];
+    }
+  }
+
+  if (targetRow === -1) {
+    return { success: false, error: "ไม่พบผู้ใช้งานที่ต้องการลบ" };
+  }
+
+  if (targetRole === "admin" && adminCount <= 1) {
+    return { success: false, error: "ไม่สามารถลบผู้ดูแลระบบ (Admin) คนสุดท้ายของระบบได้" };
+  }
+
+  sheet.deleteRow(targetRow);
+  return { success: true, message: "ลบผู้ใช้งานสำเร็จแล้ว!" };
 }
 
 /**
