@@ -321,19 +321,6 @@ const App = {
               </div>
             </form>
 
-            <!-- Quick Auto-Fill Demo Accounts -->
-            <div class="mt-6 pt-5 border-t border-slate-100">
-              <p class="text-[11px] text-slate-400 text-center font-medium mb-2.5">บัญชีทดสอบเริ่มต้น (คลิกเพื่อกรอกอัตโนมัติ):</p>
-              <div class="flex flex-col sm:flex-row gap-2">
-                <button type="button" onclick="App.quickFillLogin('admin', 'admin1234')" class="flex-1 text-[11px] bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-purple-700 border border-slate-200 hover:border-purple-300 py-1.5 px-2 rounded-lg font-mono transition text-center truncate">
-                  👑 <strong>admin</strong> / admin1234
-                </button>
-                <button type="button" onclick="App.quickFillLogin('staff1', 'staff1234')" class="flex-1 text-[11px] bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-300 py-1.5 px-2 rounded-lg font-mono transition text-center truncate">
-                  ⚡ <strong>staff1</strong> / staff1234
-                </button>
-              </div>
-            </div>
-
           </div>
         </div>
 
@@ -354,13 +341,6 @@ const App = {
       if (icon) icon.setAttribute("data-lucide", "eye");
     }
     lucide.createIcons();
-  },
-
-  quickFillLogin(u, p) {
-    var uInput = document.getElementById("login-username");
-    var pInput = document.getElementById("login-password");
-    if (uInput) uInput.value = u;
-    if (pInput) pInput.value = p;
   },
 
   async handleLoginSubmit() {
