@@ -18,6 +18,7 @@ const App = {
   files: [],
   usersList: [],
   logs: [],
+  systemSettings: null,
   chartInstance: null,
 
   async init() {
@@ -66,6 +67,14 @@ const App = {
         var usrRes = await ApiService.getUsers();
         if (usrRes && usrRes.success) {
           this.usersList = usrRes.data || [];
+        }
+      }
+
+      var setRes = await ApiService.getSettings();
+      if (setRes && setRes.success && setRes.data) {
+        this.systemSettings = setRes.data;
+        if (setRes.data.LINE_CHANNEL_ACCESS_TOKEN) {
+          AppConfig.setLineToken(setRes.data.LINE_CHANNEL_ACCESS_TOKEN);
         }
       }
 
@@ -1255,8 +1264,9 @@ const App = {
   renderSettings(container) {
     var currentGasUrl = AppConfig.getGasUrl();
     var isMock = AppConfig.isMockMode();
-    var lineToken = AppConfig.getLineToken();
-    var rootFolderId = AppConfig.getRootFolderId();
+    var backendToken = (this.systemSettings && this.systemSettings.LINE_CHANNEL_ACCESS_TOKEN) ? this.systemSettings.LINE_CHANNEL_ACCESS_TOKEN : "";
+    var lineToken = backendToken || AppConfig.getLineToken();
+    var hasToken = Boolean(lineToken);
 
     container.innerHTML = `
       <div class="max-w-4xl mx-auto space-y-6">
@@ -1288,7 +1298,7 @@ const App = {
             <i data-lucide="link" class="w-4 h-4 text-emerald-600 mr-2"></i> Google Apps Script Web App URL
           </h3>
           <p class="text-xs text-slate-500">
-            วาง URL ที่ได้จากการกด "Deploy" > "New deployment" > "Web app" บน Google Apps Script
+            URL ที่ได้จากการกด "Deploy" > "Manage deployments" > "Web app" บน Google Apps Script
           </p>
 
           <div>
@@ -1308,24 +1318,32 @@ const App = {
 
         <!-- LINE Messaging API Settings -->
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <h3 class="font-bold text-slate-800 flex items-center">
-            <i data-lucide="bot" class="w-4 h-4 text-emerald-600 mr-2"></i> LINE Developers Messaging API
-          </h3>
-          <p class="text-xs text-slate-500">
-            นำ Channel Access Token จาก LINE Developers Console มาใส่เพื่ออนุญาตให้บอทดึงรูปและตอบกลับในกลุ่ม
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center">
+              <i data-lucide="bot" class="w-4 h-4 text-emerald-600 mr-2"></i> LINE Developers Messaging API
+            </h3>
+            ${hasToken 
+              ? '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800"><i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i> บันทึกใน Google Sheets แล้ว</span>'
+              : '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 mr-1 text-rose-600"></i> ยังไม่ได้ใส่ Token (บอทจะไม่ทำงาน)</span>'
+            }
+          </div>
+          <p class="text-xs text-slate-500 leading-relaxed">
+            นำ <strong>Channel Access Token (Long-lived)</strong> จากแท็บ <strong>Messaging API</strong> ใน LINE Developers Console มาใส่ที่นี่ เพื่ออนุญาตให้บอทสามารถดาวน์โหลดรูปภาพ/ไฟล์ และส่งข้อความตอบกลับในกลุ่ม LINE ได้
           </p>
 
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Channel Access Token (Long-lived)</label>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Channel Access Token (Long-lived) *</label>
             <input type="text" id="setting-line-token" value="${lineToken}" placeholder="eyJhbGciOi..." class="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono">
           </div>
 
           <div class="flex items-center space-x-3 pt-2">
-            <button onclick="App.saveLineSettings()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition">
-              บันทึก LINE Token
+            <button onclick="App.saveLineSettings()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center space-x-1.5">
+              <i data-lucide="save" class="w-4 h-4"></i>
+              <span>บันทึก LINE Token</span>
             </button>
-            <button onclick="App.testLineBotConnection()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition">
-              ทดสอบเชื่อมต่อ LINE Bot
+            <button onclick="App.testLineBotConnection()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center space-x-1.5">
+              <i data-lucide="zap" class="w-4 h-4"></i>
+              <span>ทดสอบเชื่อมต่อ LINE Bot</span>
             </button>
           </div>
         </div>
@@ -1344,6 +1362,7 @@ const App = {
 
       </div>
     `;
+    lucide.createIcons();
   },
 
   saveGasSettings() {
@@ -1357,10 +1376,34 @@ const App = {
     this.switchTab("settings");
   },
 
-  saveLineSettings() {
-    var token = document.getElementById("setting-line-token").value.trim();
-    AppConfig.setLineToken(token);
-    this.showToast("บันทึก LINE Token สำเร็จแล้ว!", "success");
+  async saveLineSettings() {
+    var tokenInput = document.getElementById("setting-line-token");
+    var token = tokenInput ? tokenInput.value.trim() : "";
+    
+    if (!token) {
+      if (!confirm("คุณไม่ได้ระบุ LINE Token หรือต้องการลบ Token ออกจากระบบ? (หากไม่มี Token บอทจะไม่สามารถดาวน์โหลดรูปหรือตอบข้อความได้)")) {
+        return;
+      }
+    }
+
+    try {
+      this.showLoading(true);
+      AppConfig.setLineToken(token);
+      
+      var res = await ApiService.saveSettings({ LINE_CHANNEL_ACCESS_TOKEN: token });
+      if (res && res.success) {
+        if (!this.systemSettings) this.systemSettings = {};
+        this.systemSettings.LINE_CHANNEL_ACCESS_TOKEN = token;
+        this.showToast("✅ บันทึก LINE Token ลง Google Sheets สำเร็จแล้ว!", "success");
+        this.renderSettings(document.getElementById("main-content"));
+      } else {
+        this.showToast("⚠️ ไม่สามารถบันทึกลงระบบได้: " + (res ? res.error : "Unknown error"), "error");
+      }
+    } catch (e) {
+      this.showToast("❌ เกิดข้อผิดพลาดในการบันทึก: " + e.message, "error");
+    } finally {
+      this.showLoading(false);
+    }
   },
 
   async testGasConnection() {
@@ -1382,12 +1425,20 @@ const App = {
   async testLineBotConnection() {
     try {
       this.showLoading(true);
-      var token = AppConfig.getLineToken();
+      var tokenInput = document.getElementById("setting-line-token");
+      var token = tokenInput ? tokenInput.value.trim() : "";
+      if (!token) {
+        token = AppConfig.getLineToken();
+      }
+      if (!token) {
+        this.showToast("⚠️ กรุณาระบุ Channel Access Token ก่อนทดสอบ", "warning");
+        return;
+      }
       var res = await ApiService.testLineConnection(token);
-      if (res.success) {
+      if (res && res.success) {
         this.showToast("✅ " + res.message, "success");
       } else {
-        this.showToast("❌ " + res.error, "error");
+        this.showToast("❌ " + (res ? res.error : "เชื่อมต่อไม่สำเร็จ"), "error");
       }
     } catch (e) {
       this.showToast("❌ เกิดข้อผิดพลาด: " + e.message, "error");

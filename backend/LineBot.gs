@@ -372,7 +372,7 @@ function handleImageMessage(groupId, userId, message, replyToken, sourceType) {
   }
 
   // ดาวน์โหลด Binary Content จาก LINE
-  var imageBlob = fetchLineMessageBinary(messageId);
+  var imageBlob = fetchLineMessageBinary(messageId, groupId, userId);
   if (!imageBlob) {
     Logger.log("❌ ไม่สามารถดาวน์โหลดรูปภาพ ID: " + messageId);
     return;
@@ -449,7 +449,7 @@ function handleOtherFileMessage(groupId, userId, message, messageType, replyToke
   }
 
   var filesFolder = DriveApp.getFolderById(group.files_folder_id);
-  var fileBlob = fetchLineMessageBinary(messageId);
+  var fileBlob = fetchLineMessageBinary(messageId, groupId, userId);
   if (!fileBlob) {
     Logger.log("❌ ไม่สามารถดาวน์โหลดไฟล์ ID: " + messageId);
     return;
@@ -507,12 +507,22 @@ function handleOtherFileMessage(groupId, userId, message, messageType, replyToke
  */
 
 /**
+ * ตรวจสอบว่าเป็น Group ID หรือ Room ID ของ LINE หรือไม่
+ */
+function isGroupOrRoomId(id) {
+  if (!id) return false;
+  var s = id.toString();
+  return s.startsWith("C") || s.startsWith("c") || s.startsWith("R") || s.startsWith("r");
+}
+
+/**
  * ดาวน์โหลดข้อมูล Binary ของไฟล์จาก LINE Content API
  */
-function fetchLineMessageBinary(messageId) {
+function fetchLineMessageBinary(messageId, groupId, userId) {
   var token = getSettingValue("LINE_CHANNEL_ACCESS_TOKEN", "");
   if (!token) {
     Logger.log("⚠️ ไม่มี LINE_CHANNEL_ACCESS_TOKEN ใน Settings");
+    logWebhookEvent("ERROR", groupId || "", userId || "", "download", "❌ ไม่สามารถดาวน์โหลดไฟล์ได้: ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN ในระบบ");
     return null;
   }
 
@@ -529,7 +539,9 @@ function fetchLineMessageBinary(messageId) {
   if (response.getResponseCode() === 200) {
     return response.getBlob();
   } else {
-    Logger.log("❌ Error fetchLineMessageBinary status " + response.getResponseCode() + ": " + response.getContentText());
+    var errorMsg = "HTTP " + response.getResponseCode() + ": " + response.getContentText();
+    Logger.log("❌ Error fetchLineMessageBinary: " + errorMsg);
+    logWebhookEvent("ERROR", groupId || "", userId || "", "download", "LINE Content API ล้มเหลว: " + errorMsg);
     return null;
   }
 }
@@ -539,7 +551,7 @@ function fetchLineMessageBinary(messageId) {
  */
 function fetchLineGroupSummary(groupId) {
   var token = getSettingValue("LINE_CHANNEL_ACCESS_TOKEN", "");
-  if (!token || !groupId || !groupId.startsWith("c")) {
+  if (!token || !isGroupOrRoomId(groupId)) {
     return null;
   }
 
@@ -569,7 +581,7 @@ function fetchUserProfile(groupId, userId) {
   if (!token) return "สมาชิกในกลุ่ม";
 
   try {
-    var url = (groupId && groupId.startsWith("c"))
+    var url = isGroupOrRoomId(groupId)
       ? ("https://api.line.me/v2/bot/group/" + groupId + "/member/" + userId)
       : ("https://api.line.me/v2/bot/profile/" + userId);
       
@@ -594,7 +606,11 @@ function fetchUserProfile(groupId, userId) {
 function replyLineText(replyToken, text) {
   if (!replyToken) return;
   var token = getSettingValue("LINE_CHANNEL_ACCESS_TOKEN", "");
-  if (!token) return;
+  if (!token) {
+    Logger.log("⚠️ ไม่มี LINE_CHANNEL_ACCESS_TOKEN ใน Settings");
+    logWebhookEvent("WARN", "", "", "reply", "⚠️ ไม่สามารถตอบกลับได้: ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN");
+    return;
+  }
 
   var url = "https://api.line.me/v2/bot/message/reply";
   var payload = {
@@ -608,7 +624,7 @@ function replyLineText(replyToken, text) {
   };
 
   try {
-    UrlFetchApp.fetch(url, {
+    var response = UrlFetchApp.fetch(url, {
       method: "post",
       headers: {
         "Content-Type": "application/json",
@@ -617,8 +633,14 @@ function replyLineText(replyToken, text) {
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
+    if (response.getResponseCode() !== 200) {
+      var err = "HTTP " + response.getResponseCode() + ": " + response.getContentText();
+      Logger.log("Reply failed: " + err);
+      logWebhookEvent("ERROR", "", "", "reply", "LINE Reply API ล้มเหลว: " + err);
+    }
   } catch (e) {
     Logger.log("Reply failed: " + e.message);
+    logWebhookEvent("ERROR", "", "", "reply", "LINE Reply Exception: " + e.message);
   }
 }
 
