@@ -1369,17 +1369,43 @@ const App = {
             <h3 class="font-bold text-slate-800 flex items-center">
               <i data-lucide="smartphone" class="w-4 h-4 text-emerald-600 mr-2"></i> LINE Front-end Framework (LIFF) In-App Album
             </h3>
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${liffId ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">
-              ${liffId ? '🟢 ตั้งค่า LIFF แล้ว' : '⚪ ยังไม่ได้ใส่ LIFF ID'}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${liffId ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">
+              ${liffId ? '🟢 โหมด LIFF App (liff.line.me)' : '🔵 โหมด Direct In-App (พร้อมใช้งาน)'}
             </span>
           </div>
           <p class="text-xs text-slate-500 leading-relaxed">
             เปิดโอกาสให้สมาชิกในกลุ่ม LINE สามารถกดเปิดหน้าจออัปโหลดอัลบั้มรูปภาพเข้า Google Drive ได้ทันทีภายในแอป LINE โดยไม่ต้องสลับแอป
           </p>
 
+          <!-- Dual Mode Notice Box -->
+          <div class="p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-xl space-y-2 text-xs">
+            <div class="flex items-start text-blue-900 font-semibold">
+              <i data-lucide="info" class="w-4 h-4 text-blue-600 mr-1.5 shrink-0 mt-0.5"></i>
+              <span>ทางเลือกในการใช้งาน (เลือกระหว่างโหมด Direct หรือ LIFF):</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-[11px] text-slate-700">
+              <div class="bg-white p-2.5 rounded-lg border border-blue-100 space-y-1">
+                <p class="font-bold text-blue-700 flex items-center">
+                  <i data-lucide="zap" class="w-3.5 h-3.5 mr-1 text-amber-500"></i> ทางเลือกที่ 1: Direct In-App (แนะนำ)
+                </p>
+                <p class="text-slate-600 leading-normal">
+                  <strong>เว้นว่างช่อง LIFF ID ไว้ได้เลย</strong> บอทจะส่งลิงก์เปิดผ่าน LINE In-App Browser ให้อัตโนมัติ สมาชิกอัปโหลดรูปภาพได้ครบ 100% โดยไม่ต้องสร้าง Channel เพิ่ม
+                </p>
+              </div>
+              <div class="bg-white p-2.5 rounded-lg border border-blue-100 space-y-1">
+                <p class="font-bold text-purple-700 flex items-center">
+                  <i data-lucide="shield-check" class="w-3.5 h-3.5 mr-1 text-purple-600"></i> ทางเลือกที่ 2: ใช้ LIFF ID แท้
+                </p>
+                <p class="text-slate-600 leading-normal">
+                  สร้าง Channel ประเภท <strong>LINE Login (Web app)</strong> ภายใต้ Provider เดียวกัน แล้วสร้าง LIFF นำรหัสมาใส่ในช่องด้านล่าง
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">LIFF ID</label>
-            <input type="text" id="setting-liff-id" value="${liffId}" placeholder="2006xxxxxx-xxxxxxxx" class="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">LIFF ID <span class="text-slate-400 font-normal">(เว้นว่างไว้หากต้องการใช้โหมด Direct In-App)</span></label>
+            <input type="text" id="setting-liff-id" value="${liffId}" placeholder="2006xxxxxx-xxxxxxxx (หรือเว้นว่างไว้เพื่อใช้ Direct Mode)" class="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono">
           </div>
 
           <div class="flex flex-wrap items-center gap-3 pt-1">
@@ -1393,13 +1419,20 @@ const App = {
             </a>
           </div>
 
-          <div class="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-600 space-y-1.5 border border-slate-200/60">
-            <p class="font-semibold text-slate-700">💡 วิธีสร้าง LIFF App ใน LINE Developers Console (1 นาที):</p>
-            <ol class="list-decimal pl-4 space-y-1">
-              <li>ไปที่ LINE Developers Console > เลือก Channel บอท > คลิกแท็บ <strong>"LIFF"</strong> > คลิกปุ่ม <strong>"Add"</strong></li>
-              <li>ตั้งชื่อ LIFF app name เช่น <code>LINE Keep Album</code>, ขนาด Size เลือก <strong>Full</strong></li>
-              <li>ช่อง <strong>Endpoint URL</strong> ใส่: <code>https://clangu89.github.io/line-keep-bot-manager/?liff=1</code></li>
-              <li>Scopes ติ๊ก <strong>profile</strong> และ <strong>chat_message.write</strong> แล้วกด Save นำ LIFF ID มาใส่ในช่องด้านบนนี้</li>
+          <div class="p-3.5 bg-slate-50 rounded-xl text-[11px] text-slate-600 space-y-2 border border-slate-200/70">
+            <p class="font-semibold text-slate-700 flex items-center">
+              <i data-lucide="help-circle" class="w-3.5 h-3.5 text-slate-500 mr-1.5"></i> วิธีสร้าง LIFF App ใน LINE Developers Console (นโยบายใหม่ของ LINE):
+            </p>
+            <div class="p-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-[10.5px] leading-relaxed">
+              ⚠️ <strong>เหตุผลที่สร้างใน Channel บอทเดิมไม่ได้:</strong> ปัจจุบัน LINE ไม่อนุญาตให้สร้าง LIFF ใน Messaging API แล้ว แต่ต้องสร้างผ่าน <strong>LINE Login</strong> Channel ภายใต้ Provider เดียวกัน
+            </div>
+            <ol class="list-decimal pl-4 space-y-1.5 leading-relaxed">
+              <li>ไปที่ <a href="https://developers.line.biz/console/" target="_blank" class="text-blue-600 underline font-medium">LINE Developers Console</a> > คลิกที่ชื่อ <strong>Provider</strong> เดิมของท่าน</li>
+              <li>คลิกปุ่ม <strong>"Create a new channel"</strong> > เลือกประเภท <strong>"LINE Login"</strong></li>
+              <li>กรอกชื่อ Channel เช่น <code>Keep Album</code>, ติ๊กเลือก App types: <strong>"Web app"</strong> แล้วกด <strong>Create</strong></li>
+              <li>คลิกเข้าไปใน Channel LINE Login ที่เพิ่งสร้าง > เลือกแท็บ <strong>"LIFF"</strong> > คลิกปุ่ม <strong>"Add"</strong></li>
+              <li>ตั้งชื่อ LIFF app name, ขนาด Size เลือก <strong>Full</strong>, ช่อง <strong>Endpoint URL</strong> ใส่: <br><code class="bg-white px-1.5 py-0.5 border border-slate-200 rounded font-mono text-[10px] select-all">https://clangu89.github.io/line-keep-bot-manager/?liff=1</code></li>
+              <li>Scopes ติ๊ก <strong>profile</strong> และ <strong>chat_message.write</strong> แล้วกด Save นำ LIFF ID มาวางในช่องด้านบน</li>
             </ol>
           </div>
         </div>
