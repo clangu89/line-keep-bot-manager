@@ -301,7 +301,7 @@ function handleUpdateGroupSettings(groupId, settings) {
 
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === groupId) {
+    if (data[i][0] && data[i][0].toString() === groupId.toString()) {
       if (settings.group_name !== undefined) sheet.getRange(i + 1, 2).setValue(settings.group_name);
       if (settings.auto_save !== undefined) sheet.getRange(i + 1, 10).setValue(settings.auto_save);
       if (settings.auto_imageset_album !== undefined) sheet.getRange(i + 1, 11).setValue(settings.auto_imageset_album);
@@ -324,7 +324,7 @@ function handleDeleteGroup(groupId) {
 
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === groupId) {
+    if (data[i][0] && data[i][0].toString() === groupId.toString()) {
       sheet.deleteRow(i + 1);
       return { success: true, message: "ลบกลุ่มสำเร็จเรียบร้อยแล้ว" };
     }

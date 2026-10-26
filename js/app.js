@@ -1632,6 +1632,153 @@ const App = {
     }
   },
 
+  openEditGroupModal(groupId) {
+    var group = this.groups.find(g => g.group_id === groupId);
+    if (!group) {
+      this.showToast("ไม่พบข้อมูลกลุ่มนี้", "error");
+      return;
+    }
+
+    var container = document.getElementById("modal-container");
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl modal-enter space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center space-x-2">
+              <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <i data-lucide="settings-2" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base">ตั้งค่ากลุ่ม LINE</h3>
+                <p class="text-[11px] font-mono text-slate-400">${group.group_id}</p>
+              </div>
+            </div>
+            <button onclick="App.closeModal()" class="text-slate-400 hover:text-slate-600">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+
+          <div class="space-y-3.5 text-xs sm:text-sm">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">ชื่อกลุ่ม LINE *</label>
+              <input type="text" id="modal-edit-group-name" value="${group.group_name || ''}" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">โหมดการตอบกลับของบอท</label>
+              <select id="modal-edit-group-replymode" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="summary" ${group.reply_mode === 'summary' ? 'selected' : ''}>แจ้งเฉพาะสรุป/เอกสาร (แนะนำ)</option>
+                <option value="silent" ${group.reply_mode === 'silent' ? 'selected' : ''}>โหมดเงียบ (ไม่ส่งข้อความรบกวน)</option>
+                <option value="all" ${group.reply_mode === 'all' ? 'selected' : ''}>แจ้งทุกครั้งที่มีการบันทึก</option>
+              </select>
+            </div>
+
+            <div class="p-3 bg-slate-50 rounded-xl space-y-2.5 border border-slate-100 text-xs">
+              <label class="flex items-center space-x-2 cursor-pointer">
+                <input type="checkbox" id="modal-edit-group-autosave" ${(group.auto_save !== false && group.auto_save !== 'false') ? 'checked' : ''} class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                <span class="font-medium text-slate-700">เปิดบันทึกไฟล์อัตโนมัติ (Auto-Save)</span>
+              </label>
+              <p class="text-[11px] text-slate-400 pl-6">เมื่อเปิด บอทจะดูดรูปภาพและไฟล์ที่ส่งในกลุ่มเข้า Drive เสมอ</p>
+
+              <label class="flex items-center space-x-2 cursor-pointer pt-1 border-t border-slate-200">
+                <input type="checkbox" id="modal-edit-group-imageset" ${(group.auto_imageset_album !== false && group.auto_imageset_album !== 'false') ? 'checked' : ''} class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                <span class="font-medium text-slate-700">แยกโฟลเดอร์อัตโนมัติเมื่อส่งหลายรูป (imageSet)</span>
+              </label>
+              <p class="text-[11px] text-slate-400 pl-6">รวมรูปที่ส่งพร้อมกันเป็นชุดอัลบั้มอัตโนมัติ</p>
+            </div>
+
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">สถานะกลุ่ม</label>
+              <select id="modal-edit-group-status" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="active" ${group.status === 'active' ? 'selected' : ''}>🟢 ทำงานอัตโนมัติ (Active)</option>
+                <option value="inactive" ${group.status === 'inactive' ? 'selected' : ''}>⚪ หยุดชั่วคราว (Inactive)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+            <button onclick="App.deleteGroup('${group.group_id}')" class="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition font-medium flex items-center space-x-1">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              <span>ลบกลุ่มนี้</span>
+            </button>
+            <div class="flex items-center space-x-2">
+              <button onclick="App.closeModal()" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-medium text-xs sm:text-sm transition">ยกเลิก</button>
+              <button onclick="App.submitEditGroup('${group.group_id}')" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm transition">บันทึกการตั้งค่า</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    lucide.createIcons();
+  },
+
+  async submitEditGroup(groupId) {
+    var name = (document.getElementById("modal-edit-group-name") ? document.getElementById("modal-edit-group-name").value : "").trim();
+    var replyMode = document.getElementById("modal-edit-group-replymode") ? document.getElementById("modal-edit-group-replymode").value : "summary";
+    var autoSave = document.getElementById("modal-edit-group-autosave") ? document.getElementById("modal-edit-group-autosave").checked : true;
+    var autoImageSet = document.getElementById("modal-edit-group-imageset") ? document.getElementById("modal-edit-group-imageset").checked : true;
+    var status = document.getElementById("modal-edit-group-status") ? document.getElementById("modal-edit-group-status").value : "active";
+
+    if (!name) {
+      alert("กรุณาระบุชื่อกลุ่ม LINE");
+      return;
+    }
+
+    try {
+      this.showLoading(true);
+      var res = await ApiService.updateGroupSettings(groupId, {
+        group_name: name,
+        reply_mode: replyMode,
+        auto_save: autoSave,
+        auto_imageset_album: autoImageSet,
+        status: status
+      });
+
+      if (res && res.success) {
+        this.showToast("บันทึกการตั้งค่ากลุ่มสำเร็จแล้ว!", "success");
+        this.closeModal();
+        await this.loadData();
+        this.switchTab("groups");
+      } else {
+        alert(res ? res.error : "เกิดข้อผิดพลาดในการบันทึก");
+      }
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      this.showLoading(false);
+    }
+  },
+
+  async deleteGroup(groupId) {
+    var group = this.groups.find(g => g.group_id === groupId);
+    var groupName = group ? group.group_name : groupId;
+
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบกลุ่ม "${groupName}" ออกจากระบบ?`)) {
+      return;
+    }
+
+    try {
+      this.showLoading(true);
+      var res = await ApiService.deleteGroup(groupId);
+      if (res && res.success) {
+        this.showToast("ลบกลุ่มสำเร็จเรียบร้อยแล้ว!", "success");
+        this.closeModal();
+        if (this.activeGroupFilter === groupId) {
+          this.activeGroupFilter = "all";
+          AppConfig.setActiveGroupFilter("all");
+        }
+        await this.loadData();
+        this.switchTab("groups");
+      } else {
+        alert(res ? res.error : "เกิดข้อผิดพลาดในการลบกลุ่ม");
+      }
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      this.showLoading(false);
+    }
+  },
+
   openCreateAlbumModal() {
     var container = document.getElementById("modal-container");
     container.innerHTML = `
