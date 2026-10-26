@@ -149,18 +149,9 @@ function handleTextMessage(groupId, userId, text, replyToken, sourceType) {
     return;
   }
 
-  // คำสั่ง #อัลบั้ม หรือ /album เดี่ยวๆ เพื่อดูวิธีใช้งาน
-  if (/^(#อัลบั้ม|\/album)$/i.test(cleanText)) {
-    var albumHelp = "📸 วิธีบันทึกรูปภาพแยกตามอัลบั้ม:\n" +
-      "────────────────────\n" +
-      "1️⃣ พิมพ์ \"#อัลบั้ม [ชื่ออัลบั้ม]\"\n" +
-      "   เช่น: #อัลบั้ม ทดสอบ_20261026\n" +
-      "2️⃣ ส่งรูปภาพเข้ามาในห้องแชทตามปกติ บอทจะสร้างโฟลเดอร์และบันทึกเข้าอัลบั้มนั้นอัตโนมัติ\n" +
-      "3️⃣ เมื่อส่งครบ ให้พิมพ์ \"#จบอัลบั้ม\"\n\n" +
-      "💡 ข้อแนะนำ:\n" +
-      "• หากเลือกส่งรูปภาพหลายๆ รูปพร้อมกัน บอทจะรวมเป็นชุดรูปภาพให้อัตโนมัติทันที\n" +
-      "• หมายเหตุ: ฟังก์ชันสร้างอัลบั้มในแอป LINE ทาง LINE ปิดกั้นไม่ให้บอทเข้าถึง จึงต้องส่งรูปเข้าแชทโดยตรงครับ";
-    replyLineText(replyToken, albumHelp);
+  // คำสั่ง #อัลบั้ม หรือ /album หรือ #เมนู หรือ #liff เพื่อเปิดระบบอัปโหลดอัลบั้ม (LIFF)
+  if (/^(#อัลบั้ม|\/album|#เมนู|\/menu|#liff|\/liff)$/i.test(cleanText)) {
+    sendLiffMenuMessage(groupId, replyToken);
     return;
   }
 
@@ -665,6 +656,177 @@ function replyLineText(replyToken, text) {
     Logger.log("Reply failed: " + e.message);
     logWebhookEvent("ERROR", "", "", "reply", "LINE Reply Exception: " + e.message);
   }
+}
+
+/**
+ * ส่ง Flex Message ตอบกลับไปยัง LINE
+ */
+function replyLineFlex(replyToken, flexMessage) {
+  if (!replyToken) return;
+  var token = getSettingValue("LINE_CHANNEL_ACCESS_TOKEN", "");
+  if (!token) return;
+
+  var url = "https://api.line.me/v2/bot/message/reply";
+  var payload = {
+    replyToken: replyToken,
+    messages: [flexMessage]
+  };
+
+  try {
+    var res = UrlFetchApp.fetch(url, {
+      method: "post",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) {
+      Logger.log("Reply Flex failed (" + res.getResponseCode() + "): " + res.getContentText());
+      logWebhookEvent("ERROR", "", "", "reply_flex", "LINE Reply Flex error: " + res.getContentText());
+    }
+  } catch (e) {
+    Logger.log("Reply Flex error: " + e.message);
+  }
+}
+
+/**
+ * ส่ง Push Message ไปยังห้องแชทหรือกลุ่ม LINE
+ */
+function pushLineMessage(toId, messageObj) {
+  if (!toId) return;
+  var token = getSettingValue("LINE_CHANNEL_ACCESS_TOKEN", "");
+  if (!token) return;
+
+  var url = "https://api.line.me/v2/bot/message/push";
+  var payload = {
+    to: toId,
+    messages: Array.isArray(messageObj) ? messageObj : [messageObj]
+  };
+
+  try {
+    var res = UrlFetchApp.fetch(url, {
+      method: "post",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) {
+      Logger.log("Push failed (" + res.getResponseCode() + "): " + res.getContentText());
+      logWebhookEvent("ERROR", toId, "", "push", "LINE Push error: " + res.getContentText());
+    }
+  } catch (e) {
+    Logger.log("Push error: " + e.message);
+  }
+}
+
+/**
+ * ส่งการ์ด Flex Message เปิดระบบ LIFF อัลบั้มรูปภาพ
+ */
+function sendLiffMenuMessage(groupId, replyToken) {
+  var liffId = getSettingValue("LINE_LIFF_ID", "");
+  var liffUrl = liffId
+    ? ("https://liff.line.me/" + liffId + "?groupId=" + groupId)
+    : ("https://clangu89.github.io/line-keep-bot-manager/?liff=1&groupId=" + groupId);
+
+  var flexMessage = {
+    type: "flex",
+    altText: "📸 เปิดระบบอัลบั้มรูปภาพ Google Drive (LIFF)",
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#06C755",
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "text",
+            text: "LINE KEEP BOT • GOOGLE DRIVE",
+            weight: "bold",
+            color: "#ffffff",
+            size: "xxs"
+          },
+          {
+            type: "text",
+            text: "📸 อัลบั้มรูปภาพกลุ่ม (LIFF)",
+            weight: "bold",
+            color: "#ffffff",
+            size: "md",
+            margin: "xs"
+          }
+        ]
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "16px",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: "กดปุ่มด้านล่างเพื่อเปิดหน้าต่างจัดเก็บรูปภาพเข้าอัลบั้ม Google Drive ได้โดยตรงจากมือถือของคุณ",
+            wrap: true,
+            size: "xs",
+            color: "#475569"
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: "#F8FAFC",
+            cornerRadius: "8px",
+            paddingAll: "10px",
+            spacing: "xs",
+            contents: [
+              {
+                type: "text",
+                text: "✨ เลือกอัปโหลดหลายรูปพร้อมกันได้ทันที",
+                size: "xxs",
+                color: "#334155"
+              },
+              {
+                type: "text",
+                text: "✨ สร้างและแยกโฟลเดอร์ตามชื่ออัลบั้มใน Drive",
+                size: "xxs",
+                color: "#334155"
+              },
+              {
+                type: "text",
+                text: "✨ ไฟล์ภาพต้นฉบับคมชัด ไม่หมดอายุ",
+                size: "xxs",
+                color: "#334155"
+              }
+            ]
+          }
+        ]
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "12px",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: "#06C755",
+            height: "sm",
+            action: {
+              type: "uri",
+              label: "🚀 เปิดอัลบั้มรูปภาพ (LIFF)",
+              uri: liffUrl
+            }
+          }
+        ]
+      }
+    }
+  };
+
+  replyLineFlex(replyToken, flexMessage);
 }
 
 /**

@@ -20,8 +20,18 @@ const App = {
   logs: [],
   systemSettings: null,
   chartInstance: null,
+  liffGroupId: "",
+  liffUser: null,
+  selectedLiffFiles: [],
+  isCreatingNewAlbum: false,
 
   async init() {
+    // 1. ตรวจสอบว่าเปิดผ่าน LINE LIFF หรือโหมด LIFF In-App Uploader หรือไม่
+    if (this.isLiffMode()) {
+      await this.initLiffMode();
+      return;
+    }
+
     if (!AuthService.isLoggedIn()) {
       this.renderLoginScreen();
       return;
@@ -75,6 +85,9 @@ const App = {
         this.systemSettings = setRes.data;
         if (setRes.data.LINE_CHANNEL_ACCESS_TOKEN) {
           AppConfig.setLineToken(setRes.data.LINE_CHANNEL_ACCESS_TOKEN);
+        }
+        if (setRes.data.LINE_LIFF_ID) {
+          AppConfig.setLiffId(setRes.data.LINE_LIFF_ID);
         }
       }
 
@@ -1267,13 +1280,15 @@ const App = {
     var backendToken = (this.systemSettings && this.systemSettings.LINE_CHANNEL_ACCESS_TOKEN) ? this.systemSettings.LINE_CHANNEL_ACCESS_TOKEN : "";
     var lineToken = backendToken || AppConfig.getLineToken();
     var hasToken = Boolean(lineToken);
+    var backendLiffId = (this.systemSettings && this.systemSettings.LINE_LIFF_ID) ? this.systemSettings.LINE_LIFF_ID : "";
+    var liffId = backendLiffId || AppConfig.getLiffId();
 
     container.innerHTML = `
       <div class="max-w-4xl mx-auto space-y-6">
         
         <div>
           <h2 class="text-xl font-bold text-slate-800">ตั้งค่าระบบและการเชื่อมต่อ</h2>
-          <p class="text-xs sm:text-sm text-slate-500">กำหนดค่า Google Apps Script Web App URL และ LINE Developers Channel Token</p>
+          <p class="text-xs sm:text-sm text-slate-500">กำหนดค่า Google Apps Script Web App URL, LINE Messaging Token และ LINE LIFF App</p>
         </div>
 
         <!-- Mode Toggle Switch Card -->
@@ -1345,6 +1360,47 @@ const App = {
               <i data-lucide="zap" class="w-4 h-4"></i>
               <span>ทดสอบเชื่อมต่อ LINE Bot</span>
             </button>
+          </div>
+        </div>
+
+        <!-- LINE LIFF In-App Album Settings -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center">
+              <i data-lucide="smartphone" class="w-4 h-4 text-emerald-600 mr-2"></i> LINE Front-end Framework (LIFF) In-App Album
+            </h3>
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${liffId ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">
+              ${liffId ? '🟢 ตั้งค่า LIFF แล้ว' : '⚪ ยังไม่ได้ใส่ LIFF ID'}
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 leading-relaxed">
+            เปิดโอกาสให้สมาชิกในกลุ่ม LINE สามารถกดเปิดหน้าจออัปโหลดอัลบั้มรูปภาพเข้า Google Drive ได้ทันทีภายในแอป LINE โดยไม่ต้องสลับแอป
+          </p>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">LIFF ID</label>
+            <input type="text" id="setting-liff-id" value="${liffId}" placeholder="2006xxxxxx-xxxxxxxx" class="w-full text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono">
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 pt-1">
+            <button onclick="App.saveLiffSettings()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center space-x-1.5">
+              <i data-lucide="save" class="w-4 h-4"></i>
+              <span>บันทึก LIFF ID</span>
+            </button>
+            <a href="?liff=1" target="_blank" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center space-x-1.5">
+              <i data-lucide="external-link" class="w-4 h-4"></i>
+              <span>ทดสอบเปิดหน้าต่าง LIFF</span>
+            </a>
+          </div>
+
+          <div class="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-600 space-y-1.5 border border-slate-200/60">
+            <p class="font-semibold text-slate-700">💡 วิธีสร้าง LIFF App ใน LINE Developers Console (1 นาที):</p>
+            <ol class="list-decimal pl-4 space-y-1">
+              <li>ไปที่ LINE Developers Console > เลือก Channel บอท > คลิกแท็บ <strong>"LIFF"</strong> > คลิกปุ่ม <strong>"Add"</strong></li>
+              <li>ตั้งชื่อ LIFF app name เช่น <code>LINE Keep Album</code>, ขนาด Size เลือก <strong>Full</strong></li>
+              <li>ช่อง <strong>Endpoint URL</strong> ใส่: <code>https://clangu89.github.io/line-keep-bot-manager/?liff=1</code></li>
+              <li>Scopes ติ๊ก <strong>profile</strong> และ <strong>chat_message.write</strong> แล้วกด Save นำ LIFF ID มาใส่ในช่องด้านบนนี้</li>
+            </ol>
           </div>
         </div>
 
@@ -1428,6 +1484,29 @@ const App = {
       }
     } catch (e) {
       this.showToast("❌ เกิดข้อผิดพลาดในการบันทึก: " + e.message, "error");
+    } finally {
+      this.showLoading(false);
+    }
+  },
+
+  async saveLiffSettings() {
+    var liffInput = document.getElementById("setting-liff-id");
+    var id = liffInput ? liffInput.value.trim() : "";
+    AppConfig.setLiffId(id);
+
+    try {
+      this.showLoading(true);
+      var res = await ApiService.saveSettings({ LINE_LIFF_ID: id });
+      if (res && res.success) {
+        if (!this.systemSettings) this.systemSettings = {};
+        this.systemSettings.LINE_LIFF_ID = id;
+        this.showToast("✅ บันทึก LIFF ID ลงระบบสำเร็จแล้ว!", "success");
+        this.renderSettings(document.getElementById("main-content"));
+      } else {
+        this.showToast("⚠️ ไม่สามารถบันทึกได้: " + (res ? res.error : "Unknown error"), "error");
+      }
+    } catch (e) {
+      this.showToast("❌ ข้อผิดพลาด: " + e.message, "error");
     } finally {
       this.showLoading(false);
     }
@@ -2398,6 +2477,554 @@ const App = {
       toast.classList.add("opacity-0", "translate-y-2");
       setTimeout(() => toast.remove(), 300);
     }, 3500);
+  },
+
+  // ==================================================================
+  // 8. LINE LIFF IN-APP ALBUM UPLOADER
+  // ==================================================================
+
+  isLiffMode() {
+    var params = new URLSearchParams(window.location.search);
+    var hasLiffParam = params.get("liff") === "1" || params.get("liff") === "true";
+    var hasLiffHash = window.location.hash.toLowerCase().includes("liff");
+    var hasLiffId = Boolean(params.get("liffId"));
+    var hasGroupWithoutAuth = Boolean(params.get("groupId")) && !AuthService.isLoggedIn();
+    return hasLiffParam || hasLiffHash || hasLiffId || hasGroupWithoutAuth;
+  },
+
+  async initLiffMode() {
+    var params = new URLSearchParams(window.location.search);
+    this.liffGroupId = params.get("groupId") || "";
+    this.liffUser = null;
+    this.selectedLiffFiles = [];
+    this.isCreatingNewAlbum = false;
+
+    this.renderLiffLayout();
+
+    // เริ่มต้น LIFF SDK (ถ้าเปิดในแอป LINE)
+    var liffId = AppConfig.getLiffId();
+    if (window.liff && liffId) {
+      try {
+        await liff.init({ liffId: liffId });
+        if (liff.isLoggedIn()) {
+          this.liffUser = await liff.getProfile();
+        }
+      } catch (err) {
+        console.warn("LIFF SDK init warning:", err);
+      }
+    }
+
+    await this.loadLiffData();
+  },
+
+  renderLiffLayout() {
+    var root = document.getElementById("app");
+    root.innerHTML = `
+      <div class="min-h-screen bg-slate-100 flex flex-col font-sans pb-12 selection:bg-emerald-600 selection:text-white">
+        <!-- LIFF Top Navigation Bar -->
+        <header class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-4 py-3.5 shadow-md sticky top-0 z-40">
+          <div class="max-w-md mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
+                <i data-lucide="images" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h1 class="font-bold text-sm sm:text-base leading-tight">อัลบั้มรูปภาพกลุ่ม</h1>
+                <p class="text-[11px] text-emerald-100 flex items-center">
+                  <i data-lucide="cloud" class="w-3 h-3 mr-1"></i> Google Drive Cloud Storage
+                </p>
+              </div>
+            </div>
+            <button onclick="App.closeLiffWindow()" class="text-white/80 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </header>
+
+        <!-- Dynamic LIFF Content Container -->
+        <main id="liff-main-container" class="flex-1 max-w-md mx-auto w-full p-4 space-y-4">
+          <div class="py-12 text-center text-slate-400 text-xs">
+            <svg class="animate-spin w-6 h-6 text-emerald-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+            <span>กำลังโหลดข้อมูลอัลบั้ม...</span>
+          </div>
+        </main>
+
+        <!-- Toast Notifications Container -->
+        <div id="toast-container" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 z-50 flex flex-col items-center space-y-2 pointer-events-none w-11/12 max-w-sm"></div>
+      </div>
+    `;
+    lucide.createIcons();
+  },
+
+  async loadLiffData() {
+    try {
+      var grpRes = await ApiService.getGroups();
+      if (grpRes && grpRes.success) {
+        this.groups = grpRes.data || [];
+      }
+
+      if (!this.liffGroupId && this.groups.length > 0) {
+        this.liffGroupId = this.groups[0].group_id;
+      }
+
+      if (this.liffGroupId) {
+        var albRes = await ApiService.getAlbums(this.liffGroupId);
+        if (albRes && albRes.success) {
+          this.albums = albRes.data || [];
+        }
+      }
+
+      this.renderLiffContent();
+    } catch (e) {
+      console.error("Load LIFF data error:", e);
+      var container = document.getElementById("liff-main-container");
+      if (container) {
+        container.innerHTML = `
+          <div class="bg-white p-6 rounded-2xl shadow-sm text-center space-y-3">
+            <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto"></i>
+            <h3 class="font-bold text-slate-800 text-sm">ไม่สามารถโหลดข้อมูลได้</h3>
+            <p class="text-xs text-slate-500">${e.message}</p>
+            <button onclick="App.loadLiffData()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold">ลองใหม่อีกครั้ง</button>
+          </div>
+        `;
+        lucide.createIcons();
+      }
+    }
+  },
+
+  renderLiffContent() {
+    var container = document.getElementById("liff-main-container");
+    if (!container) return;
+
+    var currentGroup = this.groups.find(g => g.group_id === this.liffGroupId);
+    var groupName = currentGroup ? currentGroup.group_name : "กลุ่ม LINE";
+    var userDisplayName = (this.liffUser && this.liffUser.displayName) ? this.liffUser.displayName : "";
+    var userAvatar = (this.liffUser && this.liffUser.pictureUrl) ? this.liffUser.pictureUrl : "";
+
+    container.innerHTML = `
+      <!-- User & Group Banner Card -->
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+        <div class="flex items-center space-x-2.5 overflow-hidden">
+          <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <i data-lucide="users" class="w-4 h-4"></i>
+          </div>
+          <div class="truncate">
+            <p class="text-[10px] text-slate-400 font-medium">บันทึกเข้ากลุ่ม:</p>
+            <h3 class="font-bold text-slate-800 text-xs sm:text-sm truncate">${groupName}</h3>
+          </div>
+        </div>
+        ${userDisplayName ? `
+          <div class="flex items-center space-x-1.5 shrink-0 bg-slate-50 px-2 py-1 rounded-full border border-slate-100">
+            ${userAvatar ? `<img src="${userAvatar}" class="w-4 h-4 rounded-full object-cover">` : ''}
+            <span class="text-[11px] font-medium text-slate-600 truncate max-w-[90px]">${userDisplayName}</span>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- If multiple groups, allow changing -->
+      ${this.groups.length > 1 && !this.liffGroupId ? `
+        <div class="bg-white p-3 rounded-2xl border border-slate-200">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">เลือกกลุ่ม LINE *</label>
+          <select id="liff-group-select" onchange="App.handleLiffGroupChange(this.value)" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-emerald-500">
+            ${this.groups.map(g => `<option value="${g.group_id}" ${g.group_id === this.liffGroupId ? 'selected' : ''}>${g.group_name}</option>`).join('')}
+          </select>
+        </div>
+      ` : ''}
+
+      <!-- Album Selector / Creator Card -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold text-slate-800 flex items-center">
+            <i data-lucide="folder" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i> เลือกโฟลเดอร์อัลบั้มใน Google Drive
+          </label>
+          <div class="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg text-[11px]">
+            <button onclick="App.toggleLiffAlbumMode(false)" class="px-2.5 py-1 rounded-md transition font-medium ${!this.isCreatingNewAlbum ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'}">
+              อัลบั้มเดิม
+            </button>
+            <button onclick="App.toggleLiffAlbumMode(true)" class="px-2.5 py-1 rounded-md transition font-medium ${this.isCreatingNewAlbum ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'}">
+              ➕ สร้างใหม่
+            </button>
+          </div>
+        </div>
+
+        ${!this.isCreatingNewAlbum ? `
+          <div>
+            ${this.albums.length > 0 ? `
+              <select id="liff-album-select" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="">📁 1.รูปภาพ (บันทึกเป็นภาพเดี่ยวทั่วไป)</option>
+                ${this.albums.map(a => `
+                  <option value="${a.album_id}">📁 อัลบั้ม: ${a.album_name} (${a.image_count || 0} ภาพ)</option>
+                `).join('')}
+              </select>
+            ` : `
+              <div class="text-center py-2.5 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+                ยังไม่มีอัลบั้มในกลุ่มนี้ <button onclick="App.toggleLiffAlbumMode(true)" class="text-emerald-600 font-bold underline ml-1">กดสร้างอัลบั้มแรก</button>
+              </div>
+            `}
+          </div>
+        ` : `
+          <div class="space-y-1.5">
+            <input type="text" id="liff-new-album-name" placeholder="พิมพ์ชื่ออัลบั้มใหม่ เช่น ภาพหน้างาน_26ตค" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <p class="text-[11px] text-slate-400">ระบบจะสร้างโฟลเดอร์ชื่อนี้ใน Google Drive ให้ทันที</p>
+          </div>
+        `}
+      </div>
+
+      <!-- Photo Picker Card -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        <label class="text-xs font-bold text-slate-800 flex items-center">
+          <i data-lucide="image" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i> เลือกรูปภาพที่ต้องการจัดเก็บ
+        </label>
+
+        <!-- Tap to choose files box -->
+        <div onclick="document.getElementById('liff-file-input').click()" class="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50/70 rounded-2xl p-6 text-center cursor-pointer transition group">
+          <div class="w-12 h-12 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2 group-hover:scale-105 transition">
+            <i data-lucide="image-plus" class="w-6 h-6"></i>
+          </div>
+          <p class="font-bold text-slate-800 text-xs sm:text-sm">แตะที่นี่เพื่อเลือกรูปภาพ</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">เลือกได้หลายรูปพร้อมกัน (รองรับ JPG, PNG, WEBP)</p>
+        </div>
+        <input type="file" id="liff-file-input" multiple accept="image/*" class="hidden" onchange="App.handleLiffFilesSelected(event)">
+
+        <!-- Selected Photos Preview -->
+        ${this.selectedLiffFiles.length > 0 ? `
+          <div class="space-y-2 pt-2 border-t border-slate-100">
+            <div class="flex items-center justify-between text-xs font-semibold text-slate-700">
+              <span>เลือกไว้ทั้งหมด ${this.selectedLiffFiles.length} รูป</span>
+              <button onclick="App.clearLiffFiles()" class="text-rose-500 hover:text-rose-600 text-[11px] font-medium">ล้างรายการ</button>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto p-1 bg-slate-50 rounded-xl border border-slate-200">
+              ${this.selectedLiffFiles.map((f, idx) => `
+                <div class="relative group aspect-square rounded-lg overflow-hidden bg-slate-200 border border-slate-200 shadow-2xs">
+                  <img src="${f.previewUrl}" class="w-full h-full object-cover">
+                  <button onclick="App.removeLiffFile(${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center text-xs hover:bg-red-600 transition">
+                    &times;
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- Upload Progress Container (Hidden during idle) -->
+      <div id="liff-progress-card" class="hidden bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+        <div class="flex items-center justify-between text-xs font-semibold text-slate-700">
+          <span id="liff-progress-label">กำลังประมวลผล...</span>
+          <span id="liff-progress-percent" class="text-emerald-600 font-mono">0%</span>
+        </div>
+        <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+          <div id="liff-progress-bar" class="bg-gradient-to-r from-emerald-500 to-teal-500 h-full w-0 transition-all duration-200 rounded-full"></div>
+        </div>
+      </div>
+
+      <!-- Upload Action Button -->
+      <div class="pt-2">
+        <button id="liff-upload-btn" onclick="App.submitLiffUpload()" ${this.selectedLiffFiles.length === 0 ? 'disabled' : ''} class="w-full py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm text-white shadow-lg transition flex items-center justify-center space-x-2 ${this.selectedLiffFiles.length > 0 ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-98 shadow-emerald-500/25' : 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'}">
+          <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+          <span>${this.selectedLiffFiles.length > 0 ? `อัปโหลด ${this.selectedLiffFiles.length} รูปเข้า Google Drive` : 'กรุณาเลือกรูปภาพก่อนอัปโหลด'}</span>
+        </button>
+      </div>
+    `;
+    lucide.createIcons();
+  },
+
+  toggleLiffAlbumMode(isNew) {
+    this.isCreatingNewAlbum = isNew;
+    this.renderLiffContent();
+  },
+
+  async handleLiffGroupChange(groupId) {
+    this.liffGroupId = groupId;
+    try {
+      var albRes = await ApiService.getAlbums(groupId);
+      if (albRes && albRes.success) {
+        this.albums = albRes.data || [];
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    this.renderLiffContent();
+  },
+
+  handleLiffFilesSelected(event) {
+    var files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i];
+      var previewUrl = URL.createObjectURL(file);
+      this.selectedLiffFiles.push({
+        file: file,
+        previewUrl: previewUrl,
+        name: file.name,
+        size: file.size
+      });
+    }
+    event.target.value = "";
+    this.renderLiffContent();
+  },
+
+  removeLiffFile(index) {
+    if (this.selectedLiffFiles[index] && this.selectedLiffFiles[index].previewUrl) {
+      URL.revokeObjectURL(this.selectedLiffFiles[index].previewUrl);
+    }
+    this.selectedLiffFiles.splice(index, 1);
+    this.renderLiffContent();
+  },
+
+  clearLiffFiles() {
+    this.selectedLiffFiles.forEach(f => {
+      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+    });
+    this.selectedLiffFiles = [];
+    this.renderLiffContent();
+  },
+
+  setLiffUploading(isUploading) {
+    var progressCard = document.getElementById("liff-progress-card");
+    var uploadBtn = document.getElementById("liff-upload-btn");
+    if (progressCard) {
+      if (isUploading) progressCard.classList.remove("hidden");
+      else progressCard.classList.add("hidden");
+    }
+    if (uploadBtn) {
+      uploadBtn.disabled = isUploading;
+      if (isUploading) {
+        uploadBtn.classList.add("opacity-50", "pointer-events-none");
+      } else {
+        uploadBtn.classList.remove("opacity-50", "pointer-events-none");
+      }
+    }
+  },
+
+  updateLiffProgress(current, total, text) {
+    var label = document.getElementById("liff-progress-label");
+    var percentText = document.getElementById("liff-progress-percent");
+    var bar = document.getElementById("liff-progress-bar");
+    var percent = Math.round((current / total) * 100);
+
+    if (label) label.textContent = text;
+    if (percentText) percentText.textContent = `${percent}%`;
+    if (bar) bar.style.width = `${percent}%`;
+  },
+
+  async submitLiffUpload() {
+    if (this.selectedLiffFiles.length === 0) {
+      alert("กรุณาเลือกรูปภาพอย่างน้อย 1 รูปก่อนอัปโหลด");
+      return;
+    }
+
+    var groupId = this.liffGroupId;
+    if (!groupId) {
+      var grpSelect = document.getElementById("liff-group-select");
+      groupId = grpSelect ? grpSelect.value : "";
+    }
+    if (!groupId) {
+      alert("กรุณาเลือกกลุ่ม LINE ปลายทาง");
+      return;
+    }
+
+    var albumId = "";
+    var albumName = "";
+
+    if (this.isCreatingNewAlbum) {
+      var nameInput = document.getElementById("liff-new-album-name");
+      albumName = nameInput ? nameInput.value.trim() : "";
+      if (!albumName) {
+        alert("กรุณาระบุชื่ออัลบั้มใหม่");
+        return;
+      }
+    } else {
+      var albSelect = document.getElementById("liff-album-select");
+      albumId = albSelect ? albSelect.value : "";
+      if (albumId) {
+        var alb = this.albums.find(a => a.album_id === albumId);
+        albumName = alb ? alb.album_name : "";
+      }
+    }
+
+    try {
+      this.setLiffUploading(true);
+
+      // 1. ถ้าสร้างอัลบั้มใหม่ ให้สร้างโฟลเดอร์ใน Drive ก่อน
+      if (this.isCreatingNewAlbum && !albumId) {
+        this.updateLiffProgress(0, this.selectedLiffFiles.length, "กำลังสร้างโฟลเดอร์อัลบั้มใน Google Drive...");
+        var createRes = await ApiService.createAlbum(groupId, albumName);
+        if (createRes && createRes.success && createRes.data) {
+          albumId = createRes.data.albumId;
+          albumName = createRes.data.albumName;
+        } else {
+          throw new Error(createRes ? createRes.error : "ไม่สามารถสร้างอัลบั้มได้");
+        }
+      }
+
+      var total = this.selectedLiffFiles.length;
+      var uploadedCount = 0;
+      var senderName = (this.liffUser && this.liffUser.displayName) ? this.liffUser.displayName : "สมาชิกในกลุ่ม (LIFF)";
+      var lastDriveUrl = "";
+
+      // 2. ทยอยบีบอัดและอัปโหลดทีละไฟล์
+      for (var i = 0; i < total; i++) {
+        var fileItem = this.selectedLiffFiles[i];
+        var progressText = `กำลังอัปโหลดรูปที่ ${i + 1} จาก ${total} (${Math.round(((i + 1) / total) * 100)}%)`;
+        this.updateLiffProgress(i + 1, total, progressText);
+
+        var compressed = await this.compressImage(fileItem.file);
+        var uploadRes = await ApiService.uploadFile({
+          groupId: groupId,
+          category: "image",
+          albumId: albumId,
+          albumName: albumName,
+          fileName: compressed.fileName || ("IMG_" + Date.now() + ".jpg"),
+          mimeType: compressed.mimeType,
+          base64Data: compressed.base64,
+          senderName: senderName,
+          senderId: (this.liffUser && this.liffUser.userId) ? this.liffUser.userId : "LIFF-USER"
+        });
+
+        if (uploadRes && uploadRes.success) {
+          uploadedCount++;
+          lastDriveUrl = uploadRes.driveUrl || lastDriveUrl;
+        }
+      }
+
+      // 3. ส่ง Push Notification เข้ากลุ่มแชท LINE
+      try {
+        await ApiService.notifyAlbumUpload({
+          groupId: groupId,
+          albumName: albumName,
+          count: uploadedCount,
+          senderName: senderName,
+          folderUrl: lastDriveUrl
+        });
+      } catch (notifyErr) {
+        console.warn("Notify error:", notifyErr);
+      }
+
+      // 4. แสดงหน้าจอสำเร็จ
+      this.showLiffSuccess(albumName, uploadedCount, lastDriveUrl);
+    } catch (e) {
+      alert("เกิดข้อผิดพลาดในการอัปโหลด: " + e.message);
+      this.setLiffUploading(false);
+    }
+  },
+
+  showLiffSuccess(albumName, count, folderUrl) {
+    var container = document.getElementById("liff-main-container");
+    if (!container) return;
+
+    this.selectedLiffFiles = [];
+
+    container.innerHTML = `
+      <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm text-center space-y-4 modal-enter">
+        <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+          <i data-lucide="check" class="w-8 h-8"></i>
+        </div>
+
+        <div>
+          <h2 class="font-bold text-slate-800 text-base sm:text-lg">อัปโหลดสำเร็จเรียบร้อย!</h2>
+          <p class="text-xs text-slate-500 mt-1">
+            บันทึกรูปภาพทั้งหมด <span class="font-bold text-emerald-600">${count} ภาพ</span> เข้า Google Drive เรียบร้อยแล้ว
+          </p>
+        </div>
+
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 text-xs text-slate-700 space-y-1 text-left">
+          <div class="flex justify-between">
+            <span class="text-slate-400">โฟลเดอร์/อัลบั้ม:</span>
+            <span class="font-semibold text-slate-800">${albumName || "1.รูปภาพ"}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">สถานะ:</span>
+            <span class="text-emerald-600 font-semibold flex items-center"><i data-lucide="check-circle" class="w-3 h-3 mr-1"></i> ซิงก์เข้า Cloud แล้ว</span>
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-2">
+          ${folderUrl ? `
+            <a href="${folderUrl}" target="_blank" class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition">
+              <i data-lucide="folder-symlink" class="w-4 h-4"></i>
+              <span>เปิดดูโฟลเดอร์ใน Google Drive</span>
+            </a>
+          ` : ''}
+
+          <button onclick="App.resetLiffUpload()" class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center justify-center space-x-1.5 transition">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>อัปโหลดรูปภาพเพิ่มเติม</span>
+          </button>
+
+          <button onclick="App.closeLiffWindow()" class="w-full py-2 px-4 text-slate-400 hover:text-slate-600 text-xs font-medium">
+            ปิดหน้าต่างนี้
+          </button>
+        </div>
+      </div>
+    `;
+    lucide.createIcons();
+  },
+
+  resetLiffUpload() {
+    this.isCreatingNewAlbum = false;
+    this.selectedLiffFiles = [];
+    this.loadLiffData();
+  },
+
+  closeLiffWindow() {
+    if (window.liff && typeof liff.closeWindow === "function") {
+      try {
+        liff.closeWindow();
+        return;
+      } catch (e) {
+        console.warn("LIFF close error:", e);
+      }
+    }
+    window.location.href = window.location.pathname;
+  },
+
+  compressImage(file, maxWidth = 1920, maxHeight = 1920, quality = 0.85) {
+    return new Promise((resolve) => {
+      if (!file.type || !file.type.startsWith("image/")) {
+        var reader = new FileReader();
+        reader.onload = (e) => {
+          var base64 = e.target.result.split(",")[1];
+          resolve({ base64: base64, mimeType: file.type || "application/octet-stream", fileName: file.name, fileSize: file.size });
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      var reader = new FileReader();
+      reader.onload = (e) => {
+        var img = new Image();
+        img.onload = () => {
+          var width = img.width;
+          var height = img.height;
+          if (width > maxWidth || height > maxHeight) {
+            if (width / height > maxWidth / maxHeight) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          var canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          var dataUrl = canvas.toDataURL("image/jpeg", quality);
+          var base64 = dataUrl.split(",")[1];
+          resolve({ base64: base64, mimeType: "image/jpeg", fileName: file.name, fileSize: Math.round(base64.length * 0.75) });
+        };
+        img.onerror = () => {
+          var base64 = e.target.result.split(",")[1];
+          resolve({ base64: base64, mimeType: file.type, fileName: file.name, fileSize: file.size });
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
 };
 

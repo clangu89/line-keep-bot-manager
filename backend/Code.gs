@@ -102,6 +102,9 @@ function doPost(e) {
       case "uploadFileFromWeb":
         result = handleUploadFromWeb(payload);
         break;
+      case "notifyAlbumUpload":
+        result = handleNotifyAlbumUpload(payload);
+        break;
       case "saveSettings":
         result = handleSaveSettings(payload.settings);
         break;
@@ -473,15 +476,43 @@ function handleUploadFromWeb(payload) {
     fileSize: driveFile.getSize(),
     driveFileId: driveFile.getId(),
     driveUrl: driveFile.getUrl(),
-    thumbnailUrl: "",
-    senderId: "WEB-ADMIN",
-    senderName: "Web Admin",
-    lineMessageId: "WEB-UPLOAD"
+    thumbnailUrl: "https://drive.google.com/thumbnail?id=" + driveFile.getId() + "&sz=w400",
+    senderId: payload.senderId || "LIFF-USER",
+    senderName: payload.senderName || "สมาชิกในกลุ่ม (LIFF)",
+    lineMessageId: "LIFF-UPLOAD"
   });
 
   incrementGroupCount(groupId, category);
+  if (albumId) {
+    recalculateAlbumCount(albumId);
+  }
 
   return { success: true, fileId: fileId, driveUrl: driveFile.getUrl(), message: "อัปโหลดไฟล์สำเร็จ!" };
+}
+
+/**
+ * ส่งแจ้งเตือนเมื่อมีการอัปโหลดรูปภาพผ่าน LIFF
+ */
+function handleNotifyAlbumUpload(payload) {
+  var groupId = payload.groupId;
+  var albumName = payload.albumName || "ทั่วไป";
+  var count = payload.count || 1;
+  var senderName = payload.senderName || "สมาชิกในกลุ่ม";
+  var folderUrl = payload.folderUrl || "";
+
+  var pushText = "📸 มีการเพิ่มรูปภาพใหม่ใน Google Drive!\n" +
+    "────────────────────\n" +
+    "📁 อัลบั้ม: " + albumName + "\n" +
+    "🖼️ จำนวน: " + count + " ภาพ\n" +
+    "👤 โดย: " + senderName + "\n\n" +
+    (folderUrl ? ("🔗 ลิงก์โฟลเดอร์:\n" + folderUrl) : "");
+
+  pushLineMessage(groupId, {
+    type: "text",
+    text: pushText
+  });
+
+  return { success: true, message: "แจ้งเตือนเข้ากลุ่มสำเร็จ!" };
 }
 
 /**

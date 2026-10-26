@@ -120,6 +120,7 @@ function setupDatabase() {
   ], [
     ["LINE_CHANNEL_ACCESS_TOKEN", "", "Channel Access Token (Long-lived) จาก LINE Developers Console"],
     ["LINE_CHANNEL_SECRET", "", "Channel Secret สำหรับตรวจสอบ Webhook Signature"],
+    ["LINE_LIFF_ID", "", "LIFF ID สำหรับเปิดหน้าจออัปโหลดอัลบั้มรูปภาพใน LINE"],
     ["ROOT_FOLDER_NAME", "LINE_Keep_Bot_Storage", "ชื่อโฟลเดอร์หลักใน Google Drive สำหรับเก็บไฟล์จากทุกกลุ่ม LINE"],
     ["ROOT_FOLDER_ID", "", "Drive Folder ID ของโฟลเดอร์หลัก (ระบบจะใส่ให้อัตโนมัติเมื่อรัน setupDatabase)"],
     ["DEFAULT_REPLY_MODE", "summary", "โหมดตอบกลับเริ่มต้นของกลุ่มใหม่: silent (เงียบ), summary (สรุป), all (แจ้งทุกครั้ง)"],

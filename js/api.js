@@ -117,6 +117,10 @@ const ApiService = {
     return await this.request("uploadFileFromWeb", {}, "POST", payload);
   },
 
+  async notifyAlbumUpload(payload) {
+    return await this.request("notifyAlbumUpload", {}, "POST", payload);
+  },
+
   async saveSettings(settings) {
     return await this.request("saveSettings", {}, "POST", { settings: settings });
   },
@@ -369,10 +373,18 @@ const ApiService = {
             if (postData.settings.LINE_CHANNEL_ACCESS_TOKEN) {
               AppConfig.setLineToken(postData.settings.LINE_CHANNEL_ACCESS_TOKEN);
             }
+            if (postData.settings.LIFF_ID !== undefined) {
+              AppConfig.setLiffId(postData.settings.LIFF_ID);
+            }
             if (postData.settings.ROOT_FOLDER_ID) {
               AppConfig.setRootFolderId(postData.settings.ROOT_FOLDER_ID);
             }
             resolve({ success: true, message: "บันทึกการตั้งค่าสำเร็จแล้ว!" });
+            break;
+          }
+
+          case "notifyAlbumUpload": {
+            resolve({ success: true, message: "จำลองส่งแจ้งเตือนเข้ากลุ่มแชท LINE สำเร็จ!" });
             break;
           }
 

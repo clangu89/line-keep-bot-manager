@@ -13,6 +13,7 @@ const AppConfig = {
     GAS_URL: "line_keep_gas_url",
     USE_MOCK: "line_keep_use_mock",
     LINE_TOKEN: "line_keep_channel_token",
+    LIFF_ID: "line_keep_liff_id",
     ROOT_FOLDER_ID: "line_keep_root_folder_id",
     AUTH_USER: "line_keep_auth_user",
     ACTIVE_GROUP: "line_keep_active_group"
@@ -52,6 +53,18 @@ const AppConfig = {
       localStorage.setItem(this.STORAGE_KEYS.LINE_TOKEN, token.trim());
     } else {
       localStorage.removeItem(this.STORAGE_KEYS.LINE_TOKEN);
+    }
+  },
+
+  getLiffId() {
+    return localStorage.getItem(this.STORAGE_KEYS.LIFF_ID) || "";
+  },
+
+  setLiffId(id) {
+    if (id) {
+      localStorage.setItem(this.STORAGE_KEYS.LIFF_ID, id.trim());
+    } else {
+      localStorage.removeItem(this.STORAGE_KEYS.LIFF_ID);
     }
   },
 
