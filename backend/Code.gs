@@ -693,7 +693,7 @@ function handleDeleteUser(userId) {
 
 function getGroupRecord(groupId) {
   var groups = getSheetDataAsObjects("Groups");
-  return groups.find(function(g) { return g.group_id === groupId; });
+  return groups.find(function(g) { return g.group_id && g.group_id.toString() === groupId.toString(); });
 }
 
 function registerOrUpdateGroup(item) {
@@ -703,7 +703,7 @@ function registerOrUpdateGroup(item) {
 
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === item.groupId) {
+    if (data[i][0] && data[i][0].toString() === item.groupId.toString()) {
       if (item.groupName) sheet.getRange(i + 1, 2).setValue(item.groupName);
       if (item.pictureUrl) sheet.getRange(i + 1, 3).setValue(item.pictureUrl);
       if (item.rootFolderId) sheet.getRange(i + 1, 4).setValue(item.rootFolderId);
@@ -815,7 +815,7 @@ function incrementGroupCount(groupId, category) {
 
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === groupId) {
+    if (data[i][0] && data[i][0].toString() === groupId.toString()) {
       var col = category === "image" ? 14 : 13; // image_count (14), file_count (13)
       var current = parseInt(data[i][col - 1]) || 0;
       sheet.getRange(i + 1, col).setValue(current + 1);

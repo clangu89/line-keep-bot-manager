@@ -149,6 +149,21 @@ function handleTextMessage(groupId, userId, text, replyToken, sourceType) {
     return;
   }
 
+  // คำสั่ง #อัลบั้ม หรือ /album เดี่ยวๆ เพื่อดูวิธีใช้งาน
+  if (/^(#อัลบั้ม|\/album)$/i.test(cleanText)) {
+    var albumHelp = "📸 วิธีบันทึกรูปภาพแยกตามอัลบั้ม:\n" +
+      "────────────────────\n" +
+      "1️⃣ พิมพ์ \"#อัลบั้ม [ชื่ออัลบั้ม]\"\n" +
+      "   เช่น: #อัลบั้ม ทดสอบ_20261026\n" +
+      "2️⃣ ส่งรูปภาพเข้ามาในห้องแชทตามปกติ บอทจะสร้างโฟลเดอร์และบันทึกเข้าอัลบั้มนั้นอัตโนมัติ\n" +
+      "3️⃣ เมื่อส่งครบ ให้พิมพ์ \"#จบอัลบั้ม\"\n\n" +
+      "💡 ข้อแนะนำ:\n" +
+      "• หากเลือกส่งรูปภาพหลายๆ รูปพร้อมกัน บอทจะรวมเป็นชุดรูปภาพให้อัตโนมัติทันที\n" +
+      "• หมายเหตุ: ฟังก์ชันสร้างอัลบั้มในแอป LINE ทาง LINE ปิดกั้นไม่ให้บอทเข้าถึง จึงต้องส่งรูปเข้าแชทโดยตรงครับ";
+    replyLineText(replyToken, albumHelp);
+    return;
+  }
+
   // ตรวจสอบคำสั่งปิดอัลบั้ม
   if (/^(#จบอัลบั้ม|#ปิดอัลบั้ม|\/endalbum|#ภาพเดี่ยว)$/i.test(cleanText)) {
     endGroupAlbum(groupId, replyToken);
@@ -162,7 +177,7 @@ function handleTextMessage(groupId, userId, text, replyToken, sourceType) {
   }
 
   // คำสั่งช่วยเหลือ
-  if (/^(#ช่วยเหลือ|#help|\/help)$/i.test(cleanText)) {
+  if (/^(#ช่วยเหลือ|#help|\/help|#คำสั่ง|#วิธีใช้)$/i.test(cleanText)) {
     showHelpGuide(replyToken);
     return;
   }
@@ -269,15 +284,18 @@ function showHelpGuide(replyToken) {
   var guide = "📖 คู่มือคำสั่ง LINE Keep Bot\n" +
     "────────────────────\n" +
     "1️⃣ #อัลบั้ม [ชื่ออัลบั้ม]\n" +
-    "   สร้างและเปิดโหมดบันทึกรูปเข้าอัลบั้ม เช่น:\n" +
-    "   #อัลบั้ม สำรวจหน้างานเชียงใหม่\n\n" +
+    "   สร้างโฟลเดอร์และเริ่มบันทึกรูปเข้าอัลบั้ม เช่น:\n" +
+    "   #อัลบั้ม ทดสอบ_20261026\n\n" +
     "2️⃣ #จบอัลบั้ม\n" +
     "   ปิดโหมดอัลบั้ม สลับกลับมาบันทึกภาพเดี่ยว\n\n" +
     "3️⃣ #สถานะ\n" +
     "   ดูสรุปจำนวนไฟล์ และรับลิงก์ Google Drive\n\n" +
-    "4️⃣ #ช่วยเหลือ\n" +
+    "4️⃣ #ช่วยเหลือ (หรือ #คำสั่ง / #วิธีใช้)\n" +
     "   แสดงรายการคำสั่งนี้อีกครั้ง\n\n" +
-    "💡 Tip: ไฟล์เอกสารและวิดีโอจะถูกเก็บเข้าโฟลเดอร์ \"2.ไฟล์อื่นๆ\" โดยอัตโนมัติเสมอ";
+    "💡 คำแนะนำการบันทึกรูปเข้า Drive:\n" +
+    "• พิมพ์ #อัลบั้ม [ชื่อ] แล้วส่งรูปเข้าแชทปกติ\n" +
+    "• หรือเลือกส่งรูปหลายๆ รูปพร้อมกัน บอทจะรวมเป็นชุดรูปภาพให้อัตโนมัติ\n" +
+    "(ฟังก์ชันสร้างอัลบั้มในแอป LINE ทาง LINE ปิดกั้นไม่ให้บอทเข้าถึง จึงต้องส่งรูปเข้าห้องแชทโดยตรงครับ)";
 
   replyLineText(replyToken, guide);
 }
@@ -382,46 +400,51 @@ function handleImageMessage(groupId, userId, message, replyToken, sourceType) {
   var filename = "IMG_" + timestamp + "_" + messageId.substring(messageId.length - 4) + ".jpg";
   imageBlob.setName(filename);
 
-  var driveFile = targetFolder.createFile(imageBlob);
-  driveFile.setDescription("บันทึกจากกลุ่ม LINE: " + group.group_name + " เมื่อ " + new Date().toLocaleString("th-TH"));
+  try {
+    var driveFile = targetFolder.createFile(imageBlob);
+    driveFile.setDescription("บันทึกจากกลุ่ม LINE: " + group.group_name + " เมื่อ " + new Date().toLocaleString("th-TH"));
 
-  // ดึงโปรไฟล์ผู้ส่ง
-  var senderName = fetchUserProfile(groupId, userId);
+    // ดึงโปรไฟล์ผู้ส่ง
+    var senderName = fetchUserProfile(groupId, userId);
 
-  // บันทึกลงตาราง Files
-  var fileId = "FIL-" + Utilities.formatDate(new Date(), "Asia/Bangkok", "yyyyMMdd-HHmmss") + "-" + Math.floor(Math.random() * 1000);
-  saveFileRecord({
-    fileId: fileId,
-    groupId: groupId,
-    groupName: group.group_name,
-    category: "image",
-    albumId: albumId,
-    albumName: albumName,
-    fileName: filename,
-    mimeType: driveFile.getMimeType(),
-    fileSize: driveFile.getSize(),
-    driveFileId: driveFile.getId(),
-    driveUrl: driveFile.getUrl(),
-    thumbnailUrl: driveFile.getThumbnail ? driveFile.getThumbnail().getUrl() : "",
-    senderId: userId,
-    senderName: senderName,
-    lineMessageId: messageId
-  });
+    // บันทึกลงตาราง Files
+    var fileId = "FIL-" + Utilities.formatDate(new Date(), "Asia/Bangkok", "yyyyMMdd-HHmmss") + "-" + Math.floor(Math.random() * 1000);
+    saveFileRecord({
+      fileId: fileId,
+      groupId: groupId,
+      groupName: group.group_name,
+      category: "image",
+      albumId: albumId,
+      albumName: albumName,
+      fileName: filename,
+      mimeType: driveFile.getMimeType(),
+      fileSize: driveFile.getSize(),
+      driveFileId: driveFile.getId(),
+      driveUrl: driveFile.getUrl(),
+      thumbnailUrl: "https://drive.google.com/thumbnail?id=" + driveFile.getId() + "&sz=w400",
+      senderId: userId,
+      senderName: senderName,
+      lineMessageId: messageId
+    });
 
-  incrementGroupCount(groupId, "image");
+    incrementGroupCount(groupId, "image");
 
-  // การตอบกลับตาม Reply Mode
-  var replyMode = group.reply_mode || "summary";
-  if (replyMode === "all") {
-    var replyText = "📸 บันทึกรูปภาพสำเร็จ!\n" +
-      "📁 " + (albumName ? ("อัลบั้ม: " + albumName) : "ภาพเดี่ยว") + "\n" +
-      "🔗 ลิงก์รูป: " + driveFile.getUrl();
-    replyLineText(replyToken, replyText);
-  } else if (replyMode === "summary" && imageSet && imageSet.index === imageSet.total) {
-    var summaryText = "📸 บันทึกชุดรูปภาพสำเร็จ (" + imageSet.total + " ภาพ)\n" +
-      "📁 จัดเก็บใน: " + (albumName || "1.รูปภาพ") + "\n" +
-      "🔗 ลิงก์โฟลเดอร์: " + targetFolder.getUrl();
-    replyLineText(replyToken, summaryText);
+    // การตอบกลับตาม Reply Mode
+    var replyMode = group.reply_mode || "summary";
+    if (replyMode === "all") {
+      var replyText = "📸 บันทึกรูปภาพสำเร็จ!\n" +
+        "📁 " + (albumName ? ("อัลบั้ม: " + albumName) : "ภาพเดี่ยว") + "\n" +
+        "🔗 ลิงก์รูป: " + driveFile.getUrl();
+      replyLineText(replyToken, replyText);
+    } else if (replyMode === "summary" && imageSet && imageSet.index === imageSet.total) {
+      var summaryText = "📸 บันทึกชุดรูปภาพสำเร็จ (" + imageSet.total + " ภาพ)\n" +
+        "📁 จัดเก็บใน: " + (albumName || "1.รูปภาพ") + "\n" +
+        "🔗 ลิงก์โฟลเดอร์: " + targetFolder.getUrl();
+      replyLineText(replyToken, summaryText);
+    }
+  } catch (err) {
+    Logger.log("❌ Error in handleImageMessage save: " + err.toString());
+    logWebhookEvent("ERROR", groupId, userId, "image", "เกิดข้อผิดพลาดในการบันทึกรูปภาพ: " + err.message);
   }
 }
 

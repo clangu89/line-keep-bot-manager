@@ -1360,6 +1360,33 @@ const App = {
           </ol>
         </div>
 
+        <!-- Album Guide Card -->
+        <div class="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100 space-y-3 text-xs text-slate-700">
+          <h3 class="font-bold text-emerald-800 text-sm flex items-center">
+            <i data-lucide="folder-plus" class="w-4 h-4 text-emerald-600 mr-2"></i> คู่มือการจัดเก็บรูปภาพแบบอัลบั้มใน Google Drive
+          </h3>
+          <p class="text-slate-600 leading-relaxed">
+            ระบบออกแบบให้จัดเก็บรูปภาพแยกโฟลเดอร์ตามชื่ออัลบั้มใน Google Drive โดยมี 3 วิธีหลัก:
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div class="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs space-y-1">
+              <span class="font-bold text-emerald-700 flex items-center"><i data-lucide="message-square" class="w-3.5 h-3.5 mr-1"></i> วิธีที่ 1: พิมพ์คำสั่งในแชท</span>
+              <p class="text-slate-500 text-[11px] leading-relaxed">
+                พิมพ์ <code>#อัลบั้ม [ชื่อ]</code> เช่น <code>#อัลบั้ม ทดสอบ_20261026</code> ในแชท บอทจะเปิดโฟลเดอร์ใน Drive แล้วส่งรูปเข้าแชทปกติได้เลย เมื่อส่งเสร็จพิมพ์ <code>#จบอัลบั้ม</code>
+              </p>
+            </div>
+            <div class="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs space-y-1">
+              <span class="font-bold text-emerald-700 flex items-center"><i data-lucide="layers" class="w-3.5 h-3.5 mr-1"></i> วิธีที่ 2: ส่งหลายรูปพร้อมกัน</span>
+              <p class="text-slate-500 text-[11px] leading-relaxed">
+                เลือกรูปหลายรูปพร้อมกันแล้วกดส่งเข้าแชท บอทจะจัดกลุ่มรวมเป็นชุดรูปภาพ/อัลบั้มให้อัตโนมัติ (imageSet)
+              </p>
+            </div>
+          </div>
+          <p class="text-[11px] text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200/60 leading-relaxed">
+            ⚠️ <strong>ข้อจำกัดทางเทคนิคของ LINE</strong>: เมนู "สร้างอัลบั้ม" ของแอป LINE (LINE Native Album) ทาง LINE ปิดกั้นไม่ส่ง Webhook ให้กับบอททุกตัว จึงต้องส่งรูปภาพเข้ามาในห้องแชทโดยตรงเพื่อให้บอทจัดเก็บเข้า Google Drive ได้ครับ
+          </p>
+        </div>
+
       </div>
     `;
     lucide.createIcons();
